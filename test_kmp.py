@@ -111,7 +111,7 @@ class Complexity(unittest.TestCase):
         self.assertLessEqual(c, 2 * n)
         self.assertGreater(c, 2 * n - 2 * m)          # xấp xỉ 2N, trừ giai đoạn khởi động
         self.assertLessEqual(fs, n)
-        _, cb = bf.scan(t, bf.build(p), count_comparisons=True)
+        _, cb = bf.scan_with_comparisons(t, bf.build(p))   # giao diện BF của TV1
         self.assertEqual(cb, (n - m + 1) * m)         # BF: đúng m phép/ vị trí
 
     def test_count_mode_same_result(self):
