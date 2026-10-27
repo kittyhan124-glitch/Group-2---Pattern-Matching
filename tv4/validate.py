@@ -31,6 +31,7 @@ def validate_case(text,patterns,algorithms=ALGORITHMS,counted=False):
         except Exception as exc:
             issues.append({'kind':'algorithm_failure','algorithm':name,
                            'error':type(exc).__name__+': '+str(exc)})
+    for issue in issues:issue['mode']='counted' if counted else 'normal'
     return issues
 
 
@@ -58,7 +59,9 @@ def diagnose_contracts():
         issues.append({'id':'BF_MISSING','kind':'pending_dependency','owner':'TV1','error':str(exc)})
     text,pats=b'ab',[b'ab',b'ab',b'b']
     for issue in validate_case(text,pats,algorithms=('ac_fail',)):
-        issues.append({**issue,'id':'AC_DUPLICATE_PID','kind':'contract_issue','owner':'TV5',
+        pending=issue['kind']=='pending_dependency'
+        issues.append({**issue,'id':'AC_MISSING' if pending else 'AC_DUPLICATE_PID',
+                       'kind':'pending_dependency' if pending else 'contract_issue','owner':'TV5',
                        'input':{'text_hex':text.hex(),'patterns_hex':[p.hex() for p in pats]},
                        'note':'raw contract differs; canonical deduplicated inputs are checked separately'})
     try:
@@ -71,11 +74,11 @@ def diagnose_contracts():
     return issues
 
 
-def minimize_case(text,patterns,algorithm,budget=64):
+def minimize_case(text,patterns,algorithm,budget=64,counted=False):
     """Bounded deletion shrinker; every returned candidate still reproduces."""
     pats=list(patterns)
     def fails(t,ps):
-        return any(i['kind']=='algorithm_failure' for i in validate_case(t,ps,algorithms=(algorithm,)))
+        return any(i['kind']=='algorithm_failure' for i in validate_case(t,ps,algorithms=(algorithm,),counted=counted))
     if not fails(text,pats):return text,pats
     attempts=0;chunk=max(1,len(text)//2)
     while chunk and attempts<budget:
@@ -100,11 +103,19 @@ def line_fixture_report():
     text=normalize_text(fixture['text']);pats=prepare_keywords(fixture['keywords']).patterns
     expected=fixture['expected_flagged_line_ids'];results={}
     for name in ALGORITHMS:
-        hits=scan_algorithm(name,text,pats)
-        actual=sorted({text[:pos].count(b'\n') for pos,_ in hits})
-        summary=summarize_matches(text,pats,hits)
-        results[name]={'actual_flagged_line_ids':actual,'summary':summary,
-                       'oracle_ok':hits==oracle_find(text,pats) and actual==expected}
+        hits=None
+        try:
+            hits=scan_algorithm(name,text,pats)
+            summary=summarize_matches(text,pats,hits)
+            actual=sorted({text[:pos].count(b'\n') for pos,_ in hits})
+            ok=hits==oracle_find(text,pats) and actual==expected
+            results[name]={'actual_flagged_line_ids':actual,'summary':summary,
+                           'oracle_ok':ok,'status':'passed' if ok else 'algorithm_failure'}
+        except (ModuleNotFoundError,NotImplementedError) as exc:
+            results[name]={'status':'pending_dependency','oracle_ok':False,'error':str(exc)}
+        except Exception as exc:
+            results[name]={'status':'algorithm_failure','oracle_ok':False,
+                           'error':type(exc).__name__+': '+str(exc),'actual_hits':hits}
     return {'label_kind':fixture['label_kind'],'expected_flagged_line_ids':expected,'algorithms':results}
 
 
@@ -168,15 +179,15 @@ def run_validation(seed=11,fuzz_cases=10000):
         if index%10==0:
             checks+=validate_case(text,pats,algorithms=('bf','kmp','kmp_k'),counted=True)
         for issue in checks:
-            failures.append({'kind':issue['kind'],'algorithm':issue['algorithm'],'case_index':index})
+            failures.append({'kind':issue['kind'],'algorithm':issue['algorithm'],'case_index':index,'mode':issue['mode']})
             if len(recorded)<10:
-                small_t,small_p=minimize_case(text,pats,issue['algorithm']) if issue['kind']=='algorithm_failure' else (text,pats)
+                small_t,small_p=minimize_case(text,pats,issue['algorithm'],counted=issue['mode']=='counted') if issue['kind']=='algorithm_failure' else (text,pats)
                 recorded.append({**issue,'case_index':index,'category':label,'seed':seed,
                                  'text_hex':text.hex(),'patterns_hex':[p.hex() for p in pats],
                                  'minimized_text_hex':small_t.hex(),'minimized_patterns_hex':[p.hex() for p in small_p]})
     lines=line_fixture_report()
     for name,result in lines['algorithms'].items():
-        if not result['oracle_ok']:failures.append({'kind':'algorithm_failure','algorithm':name,'case':'line_fixture'})
+        if not result['oracle_ok']:failures.append({'kind':result['status'],'algorithm':name,'case':'line_fixture'})
     contracts=diagnose_contracts()
     return {'seed':seed,'fuzz_cases':fuzz_cases,'categories':dict(categories),'comparisons_by_algorithm':dict(comparisons),
             'fixed_cases':len(fixed_cases()),'failures':failures,'recorded_failures':recorded,

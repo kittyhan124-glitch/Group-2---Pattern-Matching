@@ -1,0 +1,32 @@
+{
+  "tv4_tool_tests": {
+    "tests": 47,
+    "status": "passed"
+  },
+  "canonical_search_validation": {
+    "seeds": [
+      11,
+      29,
+      47
+    ],
+    "cases_each": 10000,
+    "failures": 0
+  },
+  "group_acceptance": "blocked_by_owner_contracts_and_pending_research_inputs",
+  "owner_issues": [
+    "BF_EMPTY_COUNT",
+    "AC_DUPLICATE_PID",
+    "AC_COUNT_PENDING"
+  ],
+  "tv2_oracle_comparison": {
+    "cases": 1000,
+    "status": "passed"
+  },
+  "tv2_export_cells_affected": {
+    "checksum": 80,
+    "other_integer_fields": 109
+  },
+  "owner_algorithm_sources_unchanged": true,
+  "source_hashes_verified": true,
+  "notes": "TV4 implementation is complete for supplied inputs; official corpus/keywords and owner fixes require later revalidation."
+}

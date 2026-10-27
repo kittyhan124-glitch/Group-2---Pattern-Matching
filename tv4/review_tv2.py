@@ -19,6 +19,10 @@ from oracle import oracle_find,summarize_matches
 CFG=('rq','corpus_id','S_MiB','k','m_bytes')
 
 
+def _seed(value):
+    return 'na' if value in ('',None) else str(value)
+
+
 def _integer(value):
     number=Decimal(str(value))
     if not number.is_finite() or number!=number.to_integral_value():raise ValueError('integer required')
@@ -35,6 +39,7 @@ def _key(row,extra=()):
     out=[]
     for col in CFG+extra:
         value=str(row.get(col,''))
+        if col=='seed':value=_seed(row.get(col))
         if col in ('S_MiB','k','m_bytes') and value:
             try:value=str(Decimal(value).normalize())
             except InvalidOperation:pass
@@ -84,37 +89,63 @@ def recompute_per_cell(rows):
         if row.get('mode')=='timing':groups[row['cell_id']].append(row)
     out={}
     for cid,values in groups.items():
-        valid=[r for r in values if r.get('status')=='ok']
+        valid=[];invalid=[]
+        for r in values:
+            if r.get('status')!='ok':continue
+            try:
+                elapsed,build=_number(r['elapsed_ms']),_number(r['build_ms'])
+                N,count,check=(_integer(r[k]) for k in ('N_bytes','count','check'))
+                if elapsed<=0 or build<0 or N<0 or count<0 or not 0<=check<2**64:
+                    raise ValueError('measurement out of range')
+                valid.append((r,elapsed,build,N,count,check))
+            except (KeyError,ValueError,InvalidOperation,TypeError) as exc:
+                invalid.append(str(exc))
         first=values[0]
         result={k:first.get(k,'') for k in CFG+('algo','seed','cell_id')}
+        if invalid:result['invalid_raw']=invalid
         if valid:
-            times=[_number(r['elapsed_ms']) for r in valid]
-            builds=[_number(r['build_ms']) for r in valid]
+            times=[v[1] for v in valid]
+            builds=[v[2] for v in valid]
             med=statistics.median(times)
-            result.update(status='ok',n_reps=len(times),elapsed_med=med,
+            result.update(status='ok' if len(valid)==len(values) else 'partial/error',n_reps=len(times),elapsed_med=med,
                           elapsed_min=min(times),elapsed_max=max(times),
                           build_med=statistics.median(builds),
                           rep_range_pct=(max(times)-min(times))/med*100,
-                          N_bytes=_integer(valid[0]['N_bytes']),count=_integer(valid[0]['count']),
-                          check=_integer(valid[0]['check']))
-        else:result.update(status=first.get('status','error'),n_reps=0)
+                          N_bytes=valid[0][3],count=valid[0][4],check=valid[0][5])
+        else:result.update(status='invalid_raw' if invalid else first.get('status','error'),n_reps=0)
         out[cid]=result
     return out
 
 
 def audit_derived_rows(raw,per_cell_rows=(),summary_rows=(),speedup_rows=(),total_rows=()):
     pc=recompute_per_cell(raw);issues=[]
+    for cid,cell in pc.items():
+        if cell.get('invalid_raw'):issues.append({'id':'INVALID_RAW','cell_id':cid,'errors':cell['invalid_raw']})
     def compare(identifier,row,field,expected):
-        if row.get(field) in ('',None):return
+        if field not in row:return  # Partial tables supported by the Python API.
+        if row[field] in ('',None):
+            issues.append({'id':'MISSING_VALUE','field':field,'cell_id':row.get('cell_id'),'config':_key(row)})
+            return
         try:correct=_near(row[field],expected)
         except (ValueError,TypeError):correct=False
         if not correct:issues.append({'id':identifier,'field':field,'expected':expected,
                                       'actual':row.get(field),'cell_id':row.get('cell_id'),
                                       'config':_key(row)})
+    def status_and_evidence(row,status,measured_fields,has_evidence):
+        if row.get('status') and row['status']!=status:
+            issues.append({'id':'STATUS_MISMATCH','cell_id':row.get('cell_id'),
+                           'config':_key(row),'expected':status,'actual':row['status']})
+        if not has_evidence:
+            for field in measured_fields:
+                if row.get(field) not in ('',None):
+                    issues.append({'id':'UNMEASURED_VALUE','cell_id':row.get('cell_id'),
+                                   'config':_key(row),'field':field,'actual':row[field]})
     for row in per_cell_rows:
         real=pc.get(row.get('cell_id'))
         if real is None:
             issues.append({'id':'UNKNOWN_CELL','cell_id':row.get('cell_id')});continue
+        status_and_evidence(row,real['status'],('elapsed_med','elapsed_min','elapsed_max','build_med','check','count'),
+                            real['status']=='ok')
         for field in ('elapsed_med','elapsed_min','elapsed_max','build_med','rep_range_pct','n_reps'):
             if field in real:compare('PER_CELL',row,field,real[field])
         for field in ('check','N_bytes','count'):
@@ -128,7 +159,7 @@ def audit_derived_rows(raw,per_cell_rows=(),summary_rows=(),speedup_rows=(),tota
     by_seed={}
     for real in pc.values():
         aggregate[_key(real,('algo',))].append(real)
-        by_seed[(_key(real),real['algo'],str(real['seed']))]=real
+        by_seed[(_key(real),real['algo'],_seed(real['seed']))]=real
     ag={}
     for key,cells in aggregate.items():
         valid=[c for c in cells if c['status']=='ok']
@@ -142,12 +173,20 @@ def audit_derived_rows(raw,per_cell_rows=(),summary_rows=(),speedup_rows=(),tota
                  'throughput_MiB_s':(valid[0]['N_bytes']/2**20)/(median/1000),
                  'all_seeds_ok':len(valid)==len(cells)}
     for row in summary_rows:
-        values=ag.get(_key(row,('algo',)))
+        key=_key(row,('algo',));values=ag.get(key);cells=aggregate.get(key)
+        if cells is None:
+            issues.append({'id':'UNKNOWN_SUMMARY','config':key});continue
+        statuses=[c['status'] for c in cells]
+        status='ok' if all(s=='ok' for s in statuses) else ('timeout' if 'timeout' in statuses else 'partial/error')
+        status_and_evidence(row,status,('elapsed_ms_median','elapsed_ms_seed_min','elapsed_ms_seed_max',
+                                        'build_ms_median','throughput_MiB_s'),values is not None)
+        compare('SUMMARY',row,'n_seeds_planned',len(cells))
+        compare('SUMMARY',row,'n_seeds_ok',sum(s=='ok' for s in statuses))
         if values is None:continue
         for field,expected in values.items():
             if field!='all_seeds_ok':compare('SUMMARY',row,field,expected)
     for row in speedup_rows:
-        key=_key(row);base=row['baseline'];cand=row['candidate'];seed=str(row['seed'])
+        key=_key(row);base=row['baseline'];cand=row['candidate'];seed=_seed(row['seed'])
         if seed in ('median','min','max'):
             ratios=[]
             for (cfg,algo,sd),b in by_seed.items():
@@ -161,6 +200,8 @@ def audit_derived_rows(raw,per_cell_rows=(),summary_rows=(),speedup_rows=(),tota
             b=by_seed.get((key,base,seed));c=by_seed.get((key,cand,seed))
             if b and c and b['status']==c['status']=='ok':
                 compare('SPEEDUP',row,'speedup',b['elapsed_med']/c['elapsed_med'])
+            elif row.get('speedup') not in ('',None):
+                issues.append({'id':'UNMEASURED_VALUE','field':'speedup','config':key,'seed':seed})
     for row in total_rows:
         algo=row['algo']
         if algo.startswith('BREAKEVEN '):
@@ -176,6 +217,8 @@ def audit_derived_rows(raw,per_cell_rows=(),summary_rows=(),speedup_rows=(),tota
         if value and value['all_seeds_ok']:
             for r in (1,5,20):
                 compare('TOTAL_COST',row,f'total_r{r}_ms',value['build_ms_median']+r*value['elapsed_ms_median'])
+        elif any(row.get(f'total_r{r}_ms') not in ('',None) for r in (1,5,20)):
+            issues.append({'id':'UNMEASURED_VALUE','field':'total_cost','config':_key(row,('algo',))})
     return issues
 
 

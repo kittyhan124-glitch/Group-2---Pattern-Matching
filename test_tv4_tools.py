@@ -86,6 +86,48 @@ class ValidatorContract(unittest.TestCase):
         actual=profile_keywords(prepare_keywords(['a','ab','b']))['summary']['keyword_sha256']
         self.assertEqual(actual,expected)
 
+    def test_validator_cli_still_writes_report_when_ac_module_missing(self):
+        import json,shutil,subprocess,sys,tempfile
+        from pathlib import Path
+        source=Path(__file__).resolve().parent
+        with tempfile.TemporaryDirectory() as folder:
+            root=Path(folder)
+            shutil.copytree(source/'tv4',root/'tv4',ignore=shutil.ignore_patterns('__pycache__'))
+            for name in ('bf.py','kmp.py','kmp_k.py','oracle.py'):
+                shutil.copy2(source/name,root/name)
+            completed=subprocess.run([sys.executable,'-B','-m','tv4.validate','--fuzz-cases','0','--out','report'],
+                                      cwd=root,capture_output=True,text=True,timeout=20)
+            self.assertEqual(completed.returncode,1)
+            out=root/'report/verification.json'
+            self.assertTrue(out.is_file(),completed.stderr)
+            report=json.loads(out.read_text(encoding='utf-8'))
+            self.assertEqual(report['status'],'pending_dependency')
+            self.assertEqual(report['line_fixture']['algorithms']['ac_fail']['status'],'pending_dependency')
+
+    def test_invalid_line_hit_is_reported_as_failure_instead_of_throwing(self):
+        from unittest.mock import patch
+        import tv4.validate as validator
+        real=validator.scan_algorithm
+        # Only corrupt the algorithm result at the boundary being validated.
+        def invalid(name,text,pats,counted=False):
+            return [(999999,0)] if name=='bf' else real(name,text,pats,counted)
+        with patch.object(validator,'scan_algorithm',side_effect=invalid):
+            report=validator.line_fixture_report()
+        self.assertEqual(report['algorithms']['bf']['status'],'algorithm_failure')
+
+    def test_counted_failure_mode_is_preserved_for_replay(self):
+        from unittest.mock import patch
+        import tv4.validate as validator
+        real=validator.scan_algorithm
+        def counted_bug(name,text,pats,counted=False):
+            return [] if name=='bf' and counted else real(name,text,pats,counted)
+        with patch.object(validator,'scan_algorithm',side_effect=counted_bug):
+            issues=validator.validate_case(b'a',[b'a'],algorithms=('bf',),counted=True)
+            self.assertEqual(issues[0]['mode'],'counted')
+            text,pats=validator.minimize_case(b'za',[b'a'],'bf',counted=True)
+            self.assertTrue(validator.validate_case(text,pats,algorithms=('bf',),counted=True))
+            self.assertEqual(validator.validate_case(text,pats,algorithms=('bf',)),[])
+
 
 if __name__=='__main__':
     unittest.main(verbosity=2)

@@ -54,5 +54,48 @@ class CSVVerification(unittest.TestCase):
                'algo':'bf','total_r5_ms':'5002','total_r20_ms':'20002'}
         self.assertEqual(audit_derived_rows(rows,total_rows=[costs]),[])
 
+    def test_derived_timeout_cannot_be_fabricated_as_successful_zero(self):
+        from tv4.review_tv2 import audit_derived_rows
+        raw=row(status='timeout');raw['elapsed_ms']='';raw['throughput_MiB_s']=''
+        per_cell={'cell_id':'T|bf','status':'ok','elapsed_med':'0','check':'0'}
+        summary={**row(),'status':'ok','elapsed_ms_median':'0'}
+        issues=audit_derived_rows([raw],per_cell_rows=[per_cell],summary_rows=[summary])
+        self.assertTrue(any(i['id']=='STATUS_MISMATCH' for i in issues))
+        self.assertTrue(any(i['id']=='UNMEASURED_VALUE' for i in issues))
+
+    def test_invalid_raw_is_reported_without_crashing_derived_audit(self):
+        from tv4.review_tv2 import audit_derived_rows
+        bad=row();bad['elapsed_ms']='bad'
+        issues=audit_derived_rows([bad],per_cell_rows=[{'cell_id':'T|bf','status':'ok','elapsed_med':'0'}])
+        self.assertTrue(any(i['id']=='INVALID_RAW' for i in issues))
+
+    def test_successful_export_cannot_omit_a_present_measurement_column(self):
+        from tv4.review_tv2 import audit_derived_rows
+        issues=audit_derived_rows([row()],per_cell_rows=[{'cell_id':'T|bf','status':'ok','elapsed_med':''}])
+        self.assertTrue(any(i['id']=='MISSING_VALUE' for i in issues))
+
+    def test_empty_t4_seed_matches_tv2_na_label(self):
+        from tv4.review_tv2 import audit_derived_rows
+        a=row(elapsed='1000');b=row('kmp',elapsed='500')
+        a['seed']=b['seed']=''
+        speed={**a,'baseline':'bf','candidate':'kmp','seed':'na','speedup':'2'}
+        self.assertEqual(audit_derived_rows([a,b],speedup_rows=[speed]),[])
+
+    def test_csv_cli_preserves_report_on_invalid_raw_file(self):
+        import csv,json,subprocess,sys,tempfile
+        from pathlib import Path
+        with tempfile.TemporaryDirectory() as folder:
+            root=Path(folder);pilot=root/'pilot_standin';pilot.mkdir()
+            bad=row();bad['elapsed_ms']='bad'
+            with (pilot/'pilot_raw_results.csv').open('w',newline='',encoding='utf-8') as f:
+                w=csv.DictWriter(f,fieldnames=list(bad));w.writeheader();w.writerow(bad)
+            out=root/'report.json'
+            completed=subprocess.run([sys.executable,'-B','-m','tv4.review_tv2','--tv2-dir',str(root),
+                                      '--out',str(out)],capture_output=True,text=True,timeout=20)
+            self.assertEqual(completed.returncode,1)
+            self.assertTrue(out.is_file(),completed.stderr)
+            report=json.loads(out.read_text(encoding='utf-8'))
+            self.assertTrue(any(i['id']=='INVALID_RAW' for i in report['issues']))
+
 
 if __name__=='__main__':unittest.main(verbosity=2)

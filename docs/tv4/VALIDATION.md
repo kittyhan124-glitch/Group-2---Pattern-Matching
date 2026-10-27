@@ -11,7 +11,7 @@ Mục tiêu tính đúng là cùng toàn bộ danh sách (pos,pid) sau sắp x�
 | Lớp | Quy mô | Kết quả và giới hạn |
 |---|---|---|
 | Test gốc KMP/k-KMP | 15 phương thức, gồm 3.000 input ngẫu nhiên riêng của TV3 | Chạy được và đạt sau khi TV4 cung cấp oracle.py; trước đó là thiếu phụ thuộc, không phải thuật toán trượt đáp án |
-| Unit TV4 | Oracle, chuẩn hóa, dòng, profile, validator, CSV | Kết quả đầy đủ ở unit_tests.txt; chạy lại khi mã thay đổi |
+| Unit TV4 | 32 phương thức mới: oracle, chuẩn hóa, dòng, profile, validator, CSV | Full suite 47/47 gồm 15 test gốc; log ở unit_tests.txt; chạy lại khi mã thay đổi |
 | Fuzzing độc lập | 10.000 ca/seed, seeds 11,29,47 | 30.000 cấu hình input, bốn nhóm bằng nhau mỗi seed; zero sai khác trên mẫu chuẩn trong lượt đã ghi |
 | Ca biên | 10 ca/seed | Overlap, ushers, hậu tố, rỗng, mẫu dài, byte 0/255, NFC/NFD, CRLF, T4 nhỏ m=1.024 |
 | Chế độ đếm | Mỗi ca fuzz thứ 10 | Đối chiếu đầu ra BF/KMP/k-KMP; chưa xác nhận instrumentation của AC vì chưa có |

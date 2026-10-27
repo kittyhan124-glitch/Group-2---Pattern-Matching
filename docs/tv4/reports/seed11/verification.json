@@ -79,6 +79,7 @@
           1
         ]
       ],
+      "mode": "normal",
       "id": "AC_DUPLICATE_PID",
       "owner": "TV5",
       "input": {
@@ -120,7 +121,8 @@
           "lines_flagged": 4,
           "lines_total": 7
         },
-        "oracle_ok": true
+        "oracle_ok": true,
+        "status": "passed"
       },
       "kmp": {
         "actual_flagged_line_ids": [
@@ -135,7 +137,8 @@
           "lines_flagged": 4,
           "lines_total": 7
         },
-        "oracle_ok": true
+        "oracle_ok": true,
+        "status": "passed"
       },
       "kmp_k": {
         "actual_flagged_line_ids": [
@@ -150,7 +153,8 @@
           "lines_flagged": 4,
           "lines_total": 7
         },
-        "oracle_ok": true
+        "oracle_ok": true,
+        "status": "passed"
       },
       "ac_fail": {
         "actual_flagged_line_ids": [
@@ -165,7 +169,8 @@
           "lines_flagged": 4,
           "lines_total": 7
         },
-        "oracle_ok": true
+        "oracle_ok": true,
+        "status": "passed"
       }
     }
   },
@@ -177,13 +182,14 @@
     "ac_fail.py": "61faf4c9072662c3e7eacdb000d85d462824eea3b24d58fb0179413c6fd9f6bc",
     "oracle.py": "cfd072e0d57c88a2a4aee9b2bb62d8398dd4d8abc1ccfc498bc8ef3d29a988ba",
     "tv4/adapters.py": "ca4dd776991c7502d4d407b357e9a3691e2c84afbd7c4482d630d8c579a56c61",
-    "tv4/keyword_analysis.py": "c4368227c0b5da64346d5ade9b63f22b2775f9da61e89ee7214797af525d2559",
+    "tv4/keyword_analysis.py": "e2ec4673cd9c7d537c09b4bf12d925d128267087da41e376a7c699c091c424b9",
     "tv4/preprocessing.py": "edadb1224ba29670738cf32d9be63345e03d20dd5eade46417381ecb62a8769d",
-    "tv4/validate.py": "bffd41e4cc030ded73f867761c3c984ba0c22d9221e6c1b6335aa1370a8dae97",
+    "tv4/review_tv2.py": "62c4f175e4c10d8fc643f6bd088083f8cf1f396697fc36dff76110f51b9fc96a",
+    "tv4/validate.py": "1bb99a30170206df17dde86bb22759cb091f29d28da0684e696cf086068cc4b3",
     "tv4/__init__.py": "fcd0445f0b9e835ec8df5404220a3990e40b5b4c29ec86e4ee9b59abdab18dd0"
   },
   "python": "3.12.14 (main, Aug 25 2026, 14:01:42) [MSC v.1944 64 bit (AMD64)]",
   "platform": "Windows-11-10.0.26300-SP0",
-  "timestamp_utc": "2026-10-27T18:55:47.110256+00:00",
+  "timestamp_utc": "2026-10-27T19:09:27.280804+00:00",
   "scope": "actual member code; canonical nonempty unique bytes; BF/KMP adapted per pattern only for validation"
 }
