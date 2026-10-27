@@ -1,8 +1,5 @@
 """ac_fail.py
 ----------
-Cài đặt thuật toán Aho–Corasick phiên bản Failure Link (ac (fail)) theo đúng quy chuẩn đề tài CSD203.
-Học phần: CSD203 | Đề tài: Khảo sát thực nghiệm các thuật toán khớp mẫu chuỗi và Automaton Aho-Corasick.
-Thành viên phụ trách: Cặp 3 (TV5).
 
 Cấu trúc gồm 3 thành phần chính:
 1. Trie (Tập cây tiền tố): Chuyển trạng thái dựa trên bảng ánh xạ dictionary các byte (0..255).
@@ -10,11 +7,6 @@ Cấu trúc gồm 3 thành phần chính:
 3. Output Link (Dictionary Suffix Link): Đường tắt trỏ trực tiếp đến nút terminal gần nhất
    trong chuỗi failure link. Nhờ đó, việc thu thập tất cả các kết quả trùng khớp chồng lấn
    (overlapping matches / suffix matches) chỉ tốn O(Z) thời gian, không duyệt thừa.
-
-Giao diện kỹ thuật chuẩn của nhóm:
-    build(patterns) -> structure
-    scan(text_bytes, structure) -> [(pos, pid), ...]
-    compute_checksum(matches) -> int (mã băm tổng kiểm tra mod 2^64 theo Mục 5 hướng dẫn)
 """
 
 from collections import deque
@@ -25,7 +17,7 @@ import unicodedata
 
 @dataclass(frozen=True)
 class KeywordItem:
-    """Đại diện cho một từ khóa sau chuẩn hóa."""
+
     pid: int
     raw_text: str
     norm_text: str
@@ -35,15 +27,7 @@ class KeywordItem:
 
 @dataclass
 class MatchResult:
-    """
-    Kết quả khớp một từ khóa trong văn bản byte.
-    
-    Attributes:
-        start (int): Vị trí byte bắt đầu trong văn bản (bắt đầu từ 0).
-        end (int): Vị trí byte kết thúc trong văn bản (exclusive: [start, end)).
-        pid (int): Mã định danh của từ khóa.
-        pattern (bytes): Chuỗi byte của từ khóa khớp được.
-    """
+
     start: int
     end: int
     pid: int
@@ -51,28 +35,24 @@ class MatchResult:
 
 
 class State:
-    """
-    Biểu diễn một trạng thái (nút) trong Automaton Aho-Corasick.
-    """
+
     __slots__ = ("state_id", "depth", "children", "fail", "output_link", "matches")
 
     def __init__(self, state_id: int, depth: int = 0):
-        self.state_id: int = state_id              # ID duy nhất của trạng thái (0 là root)
-        self.depth: int = depth                    # Độ sâu (khoảng cách từ root)
-        self.children: Dict[int, State] = {}       # Ánh xạ: byte (0..255) -> Trạng thái kế tiếp
-        self.fail: Optional[State] = None          # Con trỏ Failure link
-        self.output_link: Optional[State] = None   # Con trỏ Output link (Dictionary Suffix link)
-        # Danh sách các mẫu kết thúc tại trạng thái này: list of (pid, byte_len, byte_pattern)
+        self.state_id: int = state_id              
+        self.depth: int = depth                    
+        self.children: Dict[int, State] = {}       
+        self.fail: Optional[State] = None          
+        self.output_link: Optional[State] = None   
         self.matches: List[Tuple[int, int, bytes]] = []
 
     @property
     def is_terminal(self) -> bool:
-        """Kiểm tra xem trạng thái có phải là điểm kết thúc của ít nhất 1 từ khóa hay không."""
         return len(self.matches) > 0
 
 
 def _normalize_keywords(raw_keywords: Union[List[str], List[bytes], List[KeywordItem]]) -> List[KeywordItem]:
-    """Chuẩn hóa danh sách từ khóa đầu vào (NFC, UTF-8, loại trùng lặp, chặn mẫu rỗng)."""
+
     manifest: List[KeywordItem] = []
     seen_bytes = set()
     current_pid = 0
@@ -142,18 +122,9 @@ def _normalize_keywords(raw_keywords: Union[List[str], List[bytes], List[Keyword
 
 
 class AhoCorasickFail:
-    """
-    Automaton Aho-Corasick sử dụng cấu trúc Failure Link & Output Link (ac_fail).
-    Hoạt động hoàn toàn trên mức byte (bytes) theo chuẩn UTF-8 sau chuẩn hóa NFC.
-    """
 
     def __init__(self, keywords: Union[List[str], List[bytes], List[KeywordItem], bytes]):
-        """
-        Khởi tạo và xây dựng Automaton Aho-Corasick.
-        
-        Args:
-            keywords: Danh sách chuỗi ký tự (str), bytes, hoặc KeywordItem.
-        """
+
         if isinstance(keywords, (bytes, bytearray)):
             keywords = [bytes(keywords)]
 
@@ -165,17 +136,12 @@ class AhoCorasickFail:
         self.num_states: int = 1  # Bắt đầu từ 1 (root)
         self.total_pattern_length: int = sum(item.byte_len for item in self.manifest)
 
-        # Bước 1: Xây dựng cây tiền tố (Trie)
         self._build_trie()
 
-        # Bước 2: Xây dựng Failure Link và Output Link bằng thuật toán BFS
         self._build_failure_and_output_links()
 
     def _build_trie(self) -> None:
-        """
-        Xây dựng cây Trie từ danh sách từ khóa byte.
-        Độ phức tạp: O(L) với L là tổng độ dài các mẫu theo byte.
-        """
+
         for item in self.manifest:
             curr = self.root
             for b in item.byte_pattern:
@@ -185,35 +151,28 @@ class AhoCorasickFail:
                     self.num_states += 1
                 curr = curr.children[b]
 
-            # Gán thông tin từ khóa tại trạng thái kết thúc (terminal state)
             curr.matches.append((item.pid, item.byte_len, item.byte_pattern))
 
     def _build_failure_and_output_links(self) -> None:
-        """
-        Xây dựng Failure Link và Output Link (Dictionary Suffix Link) qua duyệt BFS.
-        Độ phức tạp: O(L).
-        """
+
         queue: deque[State] = deque()
 
-        # Khởi tạo cho tất cả các nút con trực tiếp của root (độ sâu 1)
         for b, child in self.root.children.items():
-            child.fail = self.root       # Tất cả trạng thái độ sâu 1 đều có failure link trỏ về root
-            child.output_link = None     # Không có hậu tố thực sự nào ở độ sâu 1
+            child.fail = self.root       
+            child.output_link = None     
             queue.append(child)
 
-        # Duyệt theo thứ tự BFS qua từng tầng
+
         while queue:
             curr = queue.popleft()
 
             for b, child in curr.children.items():
                 queue.append(child)
 
-                # Tìm failure link cho child bằng cách lần theo chuỗi failure của curr
                 f = curr.fail
                 while f is not None and b not in f.children:
                     f = f.fail
 
-                # Nếu tìm thấy trạng thái có nhánh rẽ với byte b, trỏ tới đó; ngược lại trỏ về root
                 if f is not None:
                     child.fail = f.children[b]
                 else:
@@ -223,23 +182,13 @@ class AhoCorasickFail:
                 if child.fail is child:
                     child.fail = self.root
 
-                # Xây dựng Output Link (Dictionary Suffix Link)
                 if child.fail.is_terminal:
                     child.output_link = child.fail
                 else:
                     child.output_link = child.fail.output_link
 
     def search(self, text_bytes: bytes) -> List[MatchResult]:
-        """
-        Quét qua chuỗi văn bản byte và trả về TOÀN BỘ các vị trí trùng khớp
-        (kể cả các trường hợp trùng lặp hoặc chồng lấn - overlapping matches).
-        
-        Args:
-            text_bytes (bytes): Chuỗi byte cần tìm kiếm.
-            
-        Returns:
-            List[MatchResult]: Danh sách các kết quả khớp.
-        """
+
         if not isinstance(text_bytes, (bytes, bytearray)):
             raise TypeError("Văn bản tìm kiếm phải ở định dạng byte (bytes hoặc bytearray)!")
 
@@ -247,7 +196,7 @@ class AhoCorasickFail:
         curr = self.root
 
         for idx, b in enumerate(text_bytes):
-            # Nếu byte b không có nhánh rẽ tại curr, lần theo failure link
+
             while curr is not None and b not in curr.children:
                 curr = curr.fail
 
@@ -256,7 +205,6 @@ class AhoCorasickFail:
             else:
                 curr = self.root
 
-            # Kiểm tra trạng thái hiện tại hoặc các trạng thái hậu tố (output link)
             temp: Optional[State] = curr
             while temp is not None:
                 if temp.is_terminal:
@@ -274,10 +222,6 @@ class AhoCorasickFail:
         return matches
 
     def search_first_hit_per_line(self, line_bytes: bytes) -> Optional[Tuple[int, bytes]]:
-        """
-        Tìm kiếm nhanh trên một dòng: Dừng ngay khi tìm thấy từ khóa đầu tiên.
-        Phục vụ tối ưu cho ứng dụng lọc dòng (lines_flagged).
-        """
         curr = self.root
         for b in line_bytes:
             while curr is not None and b not in curr.children:
@@ -306,11 +250,6 @@ class AhoCorasickFail:
             "avg_pattern_len": self.total_pattern_length / len(self.manifest) if self.manifest else 0
         }
 
-
-# =====================================================================
-# Hợp đồng chuẩn của Nhóm 2 (build, scan, compute_checksum)
-# =====================================================================
-
 def build(patterns: Union[List[bytes], List[str], bytes, bytearray]) -> AhoCorasickFail:
     """Hàm build theo giao diện chuẩn chung: nhận mẫu và trả về cấu trúc AhoCorasickFail."""
     if isinstance(patterns, (bytes, bytearray)):
@@ -336,7 +275,6 @@ def compute_checksum(matches: List[Tuple[int, int]]) -> int:
     return check
 
 
-# Alias tương thích
 AhoCorasick = AhoCorasickFail
 
 
@@ -358,7 +296,6 @@ if __name__ == "__main__":
         matched_str = hit.pattern.decode("utf-8")
         print(f"  -> [{hit.start}:{hit.end}] pid={hit.pid}: '{matched_str}'")
 
-    # Kiểm tra giao diện chuẩn build/scan
     m = build([b"bac", b"si"])
     res = scan(b"bac si", m)
     chk = compute_checksum(res)
