@@ -41,7 +41,7 @@ def profile_keywords(prepared,text=None):
                      'occurrences':None if counts is None else counts[pid],
                      'hits_per_MiB':None if text is None or not len(text) else counts[pid]/(len(text)/2**20)})
     digest=hashlib.sha256()
-    for p in pats: digest.update(len(p).to_bytes(8,'big')+p)
+    for p in pats: digest.update(len(p).to_bytes(4,'big')+p)
     shared=[depths[i] for i,n in enumerate(visits) if n>=2]
     return {'rows':rows,'summary':{'raw_count':len(prepared.raw_keywords),'k':len(pats),
             'duplicates_removed':prepared.duplicates_removed,'L_bytes':sum(map(len,pats)),
