@@ -19,7 +19,7 @@ Spec: docs/tv4/SCOPE.md. Python 3.10+, standard library, giữ nguyên module TV
 
 - [x] Viết test CSV sai throughput, checksum lớn, warmup loại khỏi thống kê và timeout không điền 0; xem fail.
 - [x] Thêm tv4/review_tv2.py kiểm oracle và CSV bằng stdlib; chạy trên snapshot TV2 bên ngoài nhánh.
-- [ ] Hồ sơ stub từ khóa, Validation, tiến độ bằng chứng theo member, hướng dẫn chạy; kiểm full suite, reviewer độc lập, commit và push TV4-Tuan.
+- [x] Hồ sơ stub từ khóa, Validation, tiến độ bằng chứng theo member, hướng dẫn chạy; kiểm full suite, reviewer độc lập, commit và push TV4-Tuan.
 
 ## Review focus
 

@@ -57,6 +57,7 @@ Lệnh chỉ tính lại số và so oracle; không đo hiệu năng lại. `rep
 - `error_cases.json`: lỗi đã quan sát, input hex, đáp án/actual và phần thu nhỏ nếu có lỗi tìm kiếm trong fuzzing.
 - Các hợp đồng raw được kiểm riêng, ngay cả khi tầng chuẩn bị mẫu đã tránh chúng trong so sánh công bằng.
 - Sửa mã phải chạy lại unittest và validator; báo cáo đi kèm là bằng chứng của phiên bản/hash tại thời điểm chạy, không tự xác nhận mã mới.
+- source_sha256 tính trên byte file lúc chạy. Git có thể đổi LF/CRLF giữa các máy; nếu khác hash do xuống dòng, chạy lại trên checkout của máy nghiệm thu để tạo bằng chứng mới.
 - Xem `VALIDATION.md` để dùng phần phân tích trong báo cáo nhóm; `TEAM_PROGRESS.md` cho tiến độ theo đúng trách nhiệm người dùng đã xác nhận.
 
 TV4 đã cung cấp công cụ và bằng chứng có thể tái lập. Để nghiệm thu toàn nhóm vẫn cần dữ liệu thật, bộ mẫu chính thức, thống nhất hợp đồng, phần instrumentation và kết quả thực nghiệm từ các chủ RQ.
