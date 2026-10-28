@@ -49,6 +49,10 @@ def scan_with_comparisons(text_bytes: bytes, pattern_bytes: bytes):
     """Phiên bản phụ dành riêng cho lượt đo --count của RQ1 (đếm số phép so sánh byte)."""
     n = len(text_bytes)
     m = len(pattern_bytes)
+
+    if m == 0:
+        raise ValueError("Pattern không được rỗng")
+
     comparisons = 0
     results = []
 
