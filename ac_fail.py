@@ -51,7 +51,9 @@ class State:
         return len(self.matches) > 0
 
 
-def _normalize_keywords(raw_keywords: Union[List[str], List[bytes], List[KeywordItem]]) -> List[KeywordItem]:
+def _normalize_keywords(raw_keywords: Union[List[str], List[bytes], List[KeywordItem]],
+                        dedupe: bool = True) -> List[KeywordItem]:
+    """dedupe=False: giữ mẫu trùng để pid luôn bằng chỉ số trong danh sách đầu vào (yêu cầu của checksum)."""
 
     manifest: List[KeywordItem] = []
     seen_bytes = set()
@@ -77,7 +79,7 @@ def _normalize_keywords(raw_keywords: Union[List[str], List[bytes], List[Keyword
             byte_pat = bytes(item)
             if len(byte_pat) == 0:
                 raise ValueError("Pattern không được rỗng!")
-            if byte_pat in seen_bytes:
+            if dedupe and byte_pat in seen_bytes:
                 continue
             seen_bytes.add(byte_pat)
             try:
@@ -123,7 +125,7 @@ def _normalize_keywords(raw_keywords: Union[List[str], List[bytes], List[Keyword
 
 class AhoCorasickFail:
 
-    def __init__(self, keywords: Union[List[str], List[bytes], List[KeywordItem], bytes]):
+    def __init__(self, keywords: Union[List[str], List[bytes], List[KeywordItem], bytes], dedupe: bool = True):
 
         if isinstance(keywords, (bytes, bytearray)):
             keywords = [bytes(keywords)]
@@ -131,7 +133,7 @@ class AhoCorasickFail:
         if not keywords:
             raise ValueError("Danh sách từ khóa không được rỗng!")
 
-        self.manifest: List[KeywordItem] = _normalize_keywords(keywords)
+        self.manifest: List[KeywordItem] = _normalize_keywords(keywords, dedupe=dedupe)
         self.root: State = State(state_id=0, depth=0)
         self.num_states: int = 1  # Bắt đầu từ 1 (root)
         self.total_pattern_length: int = sum(item.byte_len for item in self.manifest)
@@ -221,6 +223,88 @@ class AhoCorasickFail:
 
         return matches
 
+    # ------------------------------------------------------------------
+    # Các hàm quét dùng cho runner: gọi hit(pos, pid), không tạo MatchResult.
+    # ------------------------------------------------------------------
+    def scan_hits(self, text_bytes: bytes, hit) -> None:
+        """Bản đầy đủ: Failure Link + Output Link (biến thể chính 'ac (fail)')."""
+        root = self.root
+        curr = root
+        for idx, b in enumerate(text_bytes):
+            while curr is not root and b not in curr.children:
+                curr = curr.fail
+            curr = curr.children.get(b, root)
+            temp = curr if curr.matches else curr.output_link
+            while temp is not None:
+                for pid, byte_len, _ in temp.matches:
+                    hit(idx - byte_len + 1, pid)
+                temp = temp.output_link
+
+    def scan_counted(self, text_bytes: bytes, hit) -> Dict[str, int]:
+        """Cùng logic scan_hits nhưng đếm (đề §6, lượt --count):
+        comparisons   = số lần tra một cạnh (b in node.children);
+        failure_steps = số lần lùi theo Failure Link;
+        output_steps  = số lần đi theo Output Link."""
+        root = self.root
+        curr = root
+        cmp_ = fs = os_ = 0
+        for idx, b in enumerate(text_bytes):
+            while True:
+                cmp_ += 1
+                if b in curr.children or curr is root:
+                    break
+                curr = curr.fail
+                fs += 1
+            curr = curr.children.get(b, root)
+            temp = curr if curr.matches else curr.output_link
+            while temp is not None:
+                for pid, byte_len, _ in temp.matches:
+                    hit(idx - byte_len + 1, pid)
+                temp = temp.output_link
+                if temp is not None:
+                    os_ += 1
+        return {"comparisons": cmp_, "failure_steps": fs, "output_steps": os_}
+
+    # --- ABLATION (quy định chung §3, RQ3): tắt lần lượt từng cơ chế ---
+    def scan_no_output(self, text_bytes: bytes, hit) -> None:
+        """Tắt Output Link: sau mỗi byte, duyệt TOÀN BỘ chuỗi Failure Link để tìm nút kết thúc."""
+        root = self.root
+        curr = root
+        for idx, b in enumerate(text_bytes):
+            while curr is not root and b not in curr.children:
+                curr = curr.fail
+            curr = curr.children.get(b, root)
+            temp = curr
+            while temp is not root:
+                for pid, byte_len, _ in temp.matches:
+                    hit(idx - byte_len + 1, pid)
+                temp = temp.fail
+
+    def scan_no_fail(self, text_bytes: bytes, hit) -> None:
+        """Tắt Failure Link (và Output Link): chỉ dùng Trie, bắt đầu lại từ gốc tại MỖI vị trí byte."""
+        root = self.root
+        n = len(text_bytes)
+        for start in range(n):
+            node = root
+            i = start
+            while i < n:
+                node = node.children.get(text_bytes[i])
+                if node is None:
+                    break
+                for pid, _, _ in node.matches:
+                    hit(start, pid)
+                i += 1
+
+    def size(self) -> Tuple[int, int]:
+        """(states, transitions) = (số nút Trie, số cạnh)."""
+        count = 0
+        stack = [self.root]
+        while stack:
+            node = stack.pop()
+            count += len(node.children)
+            stack.extend(node.children.values())
+        return self.num_states, count
+
     def search_first_hit_per_line(self, line_bytes: bytes) -> Optional[Tuple[int, bytes]]:
         curr = self.root
         for b in line_bytes:
@@ -254,13 +338,30 @@ def build(patterns: Union[List[bytes], List[str], bytes, bytearray]) -> AhoCoras
     """Hàm build theo giao diện chuẩn chung: nhận mẫu và trả về cấu trúc AhoCorasickFail."""
     if isinstance(patterns, (bytes, bytearray)):
         patterns = [bytes(patterns)]
-    return AhoCorasickFail(patterns)
+    # Không loại mẫu trùng: pid phải đúng bằng chỉ số trong danh sách đầu vào (đề §5, checksum).
+    return AhoCorasickFail(patterns, dedupe=False)
 
 
-def scan(text_bytes: bytes, structure: AhoCorasickFail) -> List[Tuple[int, int]]:
-    """Hàm scan theo giao diện chuẩn chung: trả về [(pos, pid), ...] đã sắp xếp."""
-    matches = structure.search(text_bytes)
-    return [(m.start, m.pid) for m in matches]
+def scan(text_bytes: bytes, structure: AhoCorasickFail, hit=None) -> Optional[List[Tuple[int, int]]]:
+    """Hàm scan theo giao diện chuẩn chung.
+    hit=None: trả về [(pos, pid), ...]; hit=hàm: gọi hit(pos, pid) cho mỗi khớp (dùng khi đo thời gian)."""
+    if not isinstance(text_bytes, (bytes, bytearray)):
+        raise TypeError("Văn bản tìm kiếm phải ở định dạng byte (bytes hoặc bytearray)!")
+    if hit is not None:
+        structure.scan_hits(text_bytes, hit)
+        return None
+    out: List[Tuple[int, int]] = []
+    structure.scan_hits(text_bytes, lambda pos, pid: out.append((pos, pid)))
+    return out
+
+
+def scan_counted(text_bytes: bytes, structure: AhoCorasickFail, hit=None):
+    """Lượt --count (đề §6): trả (matches, {'comparisons','failure_steps','output_steps'}).
+    hit=hàm thì matches là None."""
+    out: List[Tuple[int, int]] = []
+    report = hit if hit is not None else (lambda pos, pid: out.append((pos, pid)))
+    stats = structure.scan_counted(text_bytes, report)
+    return (out if hit is None else None), stats
 
 
 def compute_checksum(matches: List[Tuple[int, int]]) -> int:

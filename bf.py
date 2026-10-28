@@ -17,10 +17,11 @@ def build(pattern_bytes: bytes):
     return pattern_bytes
 
 
-def scan(text_bytes: bytes, pattern_bytes: bytes):
+def scan(text_bytes: bytes, pattern_bytes: bytes, hit=None):
     """Tìm tất cả các lần xuất hiện của pattern_bytes trong text_bytes.
 
-    Trả về danh sách các cặp (pos, pid) với pid mặc định là 0.
+    hit=None: trả về danh sách các cặp (pos, pid) với pid mặc định là 0.
+    hit=hàm : gọi hit(pos, 0) cho mỗi khớp, không lưu danh sách (dùng khi đo thời gian).
     """
     if not isinstance(text_bytes, (bytes, bytearray)):
         raise TypeError("Text phải là kiểu bytes hoặc bytearray")
@@ -32,20 +33,21 @@ def scan(text_bytes: bytes, pattern_bytes: bytes):
         raise ValueError("Pattern không được rỗng")
 
     results = []
+    report = hit if hit is not None else (lambda pos, pid: results.append((pos, pid)))
 
     for i in range(n - m + 1):
         match = True
         for j in range(m):
             if text_bytes[i + j] != pattern_bytes[j]:
                 match = False
-                break  
+                break
         if match:
-            results.append((i, 0))
+            report(i, 0)
 
-    return results
+    return results if hit is None else None
 
 
-def scan_with_comparisons(text_bytes: bytes, pattern_bytes: bytes):
+def scan_with_comparisons(text_bytes: bytes, pattern_bytes: bytes, hit=None):
     """Phiên bản phụ dành riêng cho lượt đo --count của RQ1 (đếm số phép so sánh byte)."""
     n = len(text_bytes)
     m = len(pattern_bytes)
@@ -55,6 +57,7 @@ def scan_with_comparisons(text_bytes: bytes, pattern_bytes: bytes):
 
     comparisons = 0
     results = []
+    report = hit if hit is not None else (lambda pos, pid: results.append((pos, pid)))
 
     for i in range(n - m + 1):
         match = True
@@ -64,6 +67,6 @@ def scan_with_comparisons(text_bytes: bytes, pattern_bytes: bytes):
                 match = False
                 break
         if match:
-            results.append((i, 0))
+            report(i, 0)
 
     return results, comparisons

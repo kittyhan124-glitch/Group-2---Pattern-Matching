@@ -51,19 +51,21 @@ def build(patterns: List[bytes]) -> Dict[str, Any]:
 
 
 def scan(text: bytes, structure: Dict[str, Any],
-         count_comparisons: bool = False) -> Union[Matches, Tuple[Matches, int]]:
+         count_comparisons: bool = False, hit=None) -> Union[Matches, Tuple[Matches, int], None]:
+    """hit=hàm: gọi hit(pos, pid) cho mỗi khớp thay vì lưu danh sách (dùng khi đo thời gian)."""
     if not isinstance(text, (bytes, bytearray)):
         raise TypeError(f"Text must be bytes or bytearray, got {type(text)}")
     if count_comparisons:
-        matches, comparisons, _ = scan_stats(text, structure)
+        matches, comparisons, _ = scan_stats(text, structure, hit=hit)
         return matches, comparisons
 
     machines = structure["machines"]
     k: int = structure["k"]
     n = len(text)
     matches: Matches = []
+    report = hit if hit is not None else (lambda pos, pid: matches.append((pos, pid)))
     if n == 0:
-        return matches
+        return matches if hit is None else None
 
     states = [0] * k
     for i in range(n):                       # đúng một lượt trên văn bản
@@ -76,13 +78,13 @@ def scan(text: bytes, structure: Dict[str, Any],
             if p[j] == b:
                 j += 1
             if j == m:
-                matches.append((i - m + 1, pid))
+                report(i - m + 1, pid)
                 j = pi[j - 1]                # giữ overlap
             states[pid] = j
-    return matches
+    return matches if hit is None else None
 
 
-def scan_stats(text: bytes, structure: Dict[str, Any]) -> Tuple[Matches, int, int]:
+def scan_stats(text: bytes, structure: Dict[str, Any], hit=None) -> Tuple[Matches, int, int]:
     """(matches, comparisons, failure_steps) cộng trên cả k máy; mỗi phép so sánh đếm 1 lần."""
     if not isinstance(text, (bytes, bytearray)):
         raise TypeError(f"Text must be bytes or bytearray, got {type(text)}")
@@ -90,6 +92,7 @@ def scan_stats(text: bytes, structure: Dict[str, Any]) -> Tuple[Matches, int, in
     k: int = structure["k"]
     n = len(text)
     matches: Matches = []
+    report = hit if hit is not None else (lambda pos, pid: matches.append((pos, pid)))
     if n == 0:
         return matches, 0, 0
 
@@ -111,7 +114,7 @@ def scan_stats(text: bytes, structure: Dict[str, Any]) -> Tuple[Matches, int, in
                 failure_steps += 1
                 j = pi[j - 1]
             if j == m:
-                matches.append((i - m + 1, pid))
+                report(i - m + 1, pid)
                 j = pi[j - 1]
             states[pid] = j
     return matches, comparisons, failure_steps

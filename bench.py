@@ -20,7 +20,10 @@ import common  # noqa: E402
 
 SEEDS = [11, 29, 47]
 TIMEOUT_S = 60
-ALGO_FILES = {"bf": "bf.py", "kmp": "kmp.py", "kmp-k": "kmpk.py", "ac": "ac.py", "lib-find": "libfind.py"}
+ALGO_FILES = {"bf": "bf.py", "kmp": "kmp.py", "kmp-k": "kmpk.py", "ac": "ac.py", "lib-find": "libfind.py",
+              # ablation RQ3 (quy định chung §3): AC tắt Output Link / tắt Failure Link
+              "ac-noout": "ac_noout.py", "ac-nofail": "ac_nofail.py"}
+ALGO_DIR = os.path.join(HERE, "algos")   # wrapper nối mã thật của thành viên; algos_ref/ chỉ để thử runner
 
 PLAN_FIELDS = ["cell_id", "group_id", "rq", "corpus_id", "corpus_file", "binary", "S_MiB", "algo", "seed",
                "k", "m", "sigma", "pattern_spec", "timeout_s"]
@@ -38,7 +41,11 @@ def load_algo(name, algo_dir):
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     assert mod.NAME == name, f"{path}: NAME={mod.NAME!r} khác {name!r}"
-    return mod, hashlib.sha256(open(path, "rb").read()).hexdigest()[:10]
+    h = hashlib.sha256(open(path, "rb").read())
+    src = getattr(mod, "SOURCE", None)          # file thuật toán thật mà wrapper gọi vào
+    if src:
+        h.update(open(os.path.join(HERE, src), "rb").read())
+    return mod, h.hexdigest()[:10]
 
 
 def file_sha(path, _cache={}):
@@ -307,6 +314,13 @@ def build_plan(timeout_s, seeds=SEEDS):
                     for algo in ("kmp-k", "ac", "lib-find"):
                         add("RQ3", cid, f"data/{cid}_{S}MiB.bin", 0, S, algo, seed, k, 16, "",
                             json.dumps({"kind": "file", "path": f"keywords/kw_{lang}_seed{seed}_k{k}.txt"}))
+    # RQ3 ABLATION (quy định chung §3): tắt lần lượt Output Link, Failure Link của AC; T1/T2 4 MiB
+    for seed in seeds:
+        for lang, cid in (("vi", "T1_vi"), ("en", "T2_en")):
+            for k in (1, 10, 100, 1000):
+                for algo in ("ac", "ac-noout", "ac-nofail"):
+                    add("RQ3ABL", cid, f"data/{cid}_4MiB.bin", 0, 4, algo, seed, k, 16, "",
+                        json.dumps({"kind": "file", "path": f"keywords/kw_{lang}_seed{seed}_k{k}.txt"}))
     return rows
 
 
@@ -387,10 +401,10 @@ def main():
     p = sp.add_parser("estimate")
     p.add_argument("--plan", default="plan.csv"); p.add_argument("--out", default="workload_estimate.csv")
     p.add_argument("--prefix", type=int, default=65536); p.add_argument("--pilot-timeout", type=int, default=TIMEOUT_S)
-    p.add_argument("--algo-dir", default=os.path.join(HERE, "algos_ref"))
+    p.add_argument("--algo-dir", default=ALGO_DIR)
     p = sp.add_parser("run")
     p.add_argument("--plan", default="plan.csv"); p.add_argument("--out", default="raw_results.csv")
-    p.add_argument("--algo-dir", default=os.path.join(HERE, "algos_ref")); p.add_argument("--rq", nargs="*")
+    p.add_argument("--algo-dir", default=ALGO_DIR); p.add_argument("--rq", nargs="*")
     p.add_argument("--reps", type=int, default=3); p.add_argument("--limit", type=int, default=0, help="chỉ chạy N nhóm đầu (debug)")
     p.add_argument("--no-count", action="store_true"); p.add_argument("--no-mem", action="store_true")
     p.add_argument("--force-count", action="store_true")

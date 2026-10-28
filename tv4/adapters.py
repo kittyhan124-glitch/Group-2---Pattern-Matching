@@ -26,5 +26,5 @@ def scan_algorithm(name,text,patterns,counted=False):
     if counted and name=='kmp_k':
         return sorted(mod.scan_stats(text,structure)[0])
     if counted:
-        raise NotImplementedError('AC counted scan not yet provided by its owner')
+        return sorted(mod.scan_counted(text,structure)[0])
     return sorted(mod.scan(text,structure))

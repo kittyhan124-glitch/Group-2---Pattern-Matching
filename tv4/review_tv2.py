@@ -17,6 +17,14 @@ import statistics
 from oracle import oracle_find,summarize_matches
 
 CFG=('rq','corpus_id','S_MiB','k','m_bytes')
+STATUS_PRIORITY=('wrong','oom','crash','timeout')
+
+
+def _aggregate_status(statuses):
+    statuses=set(statuses)
+    for status in STATUS_PRIORITY:
+        if status in statuses:return status
+    return 'ok' if statuses=={'ok'} else 'crash'
 
 
 def _seed(value):
@@ -87,6 +95,10 @@ def recompute_per_cell(rows):
     groups=defaultdict(list)
     for row in rows:
         if row.get('mode')=='timing':groups[row['cell_id']].append(row)
+    timed_cells=set(groups)
+    for row in rows:
+        if row.get('mode')=='warmup' and row.get('status')!='ok' and row.get('cell_id') not in timed_cells:
+            groups[row['cell_id']].append(row)
     out={}
     for cid,values in groups.items():
         valid=[];invalid=[]
@@ -103,16 +115,17 @@ def recompute_per_cell(rows):
         first=values[0]
         result={k:first.get(k,'') for k in CFG+('algo','seed','cell_id')}
         if invalid:result['invalid_raw']=invalid
-        if valid:
+        status=_aggregate_status(r.get('status','crash') for r in values)
+        if valid and status=='ok':
             times=[v[1] for v in valid]
             builds=[v[2] for v in valid]
             med=statistics.median(times)
-            result.update(status='ok' if len(valid)==len(values) else 'partial/error',n_reps=len(times),elapsed_med=med,
+            result.update(status='ok',n_reps=len(times),elapsed_med=med,
                           elapsed_min=min(times),elapsed_max=max(times),
                           build_med=statistics.median(builds),
                           rep_range_pct=(max(times)-min(times))/med*100,
                           N_bytes=valid[0][3],count=valid[0][4],check=valid[0][5])
-        else:result.update(status='invalid_raw' if invalid else first.get('status','error'),n_reps=0)
+        else:result.update(status='invalid_raw' if invalid else status,n_reps=len(valid))
         out[cid]=result
     return out
 
@@ -177,7 +190,7 @@ def audit_derived_rows(raw,per_cell_rows=(),summary_rows=(),speedup_rows=(),tota
         if cells is None:
             issues.append({'id':'UNKNOWN_SUMMARY','config':key});continue
         statuses=[c['status'] for c in cells]
-        status='ok' if all(s=='ok' for s in statuses) else ('timeout' if 'timeout' in statuses else 'partial/error')
+        status=_aggregate_status(statuses)
         status_and_evidence(row,status,('elapsed_ms_median','elapsed_ms_seed_min','elapsed_ms_seed_max',
                                         'build_ms_median','throughput_MiB_s'),values is not None)
         compare('SUMMARY',row,'n_seeds_planned',len(cells))

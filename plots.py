@@ -7,8 +7,9 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
-COL = {"bf": "#c0392b", "kmp": "#2471a3", "kmp-k": "#7d3c98", "ac": "#1e8449", "lib-find": "#7f8c8d"}
-MK = {"bf": "o", "kmp": "s", "kmp-k": "^", "ac": "D", "lib-find": "v"}
+COL = {"bf": "#c0392b", "kmp": "#2471a3", "kmp-k": "#7d3c98", "ac": "#1e8449", "lib-find": "#7f8c8d",
+       "ac-noout": "#d68910", "ac-nofail": "#566573"}
+MK = {"bf": "o", "kmp": "s", "kmp-k": "^", "ac": "D", "lib-find": "v", "ac-noout": "P", "ac-nofail": "x"}
 NOTE = "Điểm = median của 3 median theo seed (mỗi median từ 3 lượt đo); dải = min–max giữa các seed."
 
 
@@ -149,6 +150,28 @@ def fig_breakeven(s, out, maxr=30):
     f.tight_layout(); f.savefig(out, dpi=150); plt.close(f)
 
 
+def fig_ablation(s, out):
+    """RQ3 ablation: thời gian quét của AC đầy đủ so với AC tắt Output Link / tắt Failure Link."""
+    d = s[s["rq"] == "RQ3ABL"]
+    if d.empty: return
+    cs = sorted(d.corpus_id.unique())
+    f, ax = plt.subplots(1, len(cs), figsize=(5.2 * len(cs), 4.2), squeeze=False)
+    for j, c in enumerate(cs):
+        for a in ("ac", "ac-noout", "ac-nofail"):
+            g = d[(d.corpus_id == c) & (d.algo == a)]
+            gk = g[g.status == "ok"]
+            if not gk.empty:
+                _line(ax[0, j], gk, "k", "elapsed_ms_median", "elapsed_ms_seed_min", "elapsed_ms_seed_max", a)
+        ax[0, j].set_xscale("log"); ax[0, j].set_yscale("log"); ax[0, j].grid(alpha=.3, which="both")
+        _plain_ticks(ax[0, j], d.k.unique())
+        for a in ("ac", "ac-noout", "ac-nofail"):
+            _tmo(ax[0, j], d[(d.corpus_id == c) & (d.algo == a)], "k", a)
+        ax[0, j].set(title=f"RQ3 ablation – {c}, 4 MiB", xlabel="k (số từ khóa)", ylabel="Thời gian quét (ms)")
+        ax[0, j].legend(fontsize=7)
+    f.text(0.5, 0.005, NOTE, ha="center", fontsize=8); f.tight_layout(rect=(0, 0.03, 1, 1))
+    f.savefig(out, dpi=150); plt.close(f)
+
+
 def main(summary, outdir):
     os.makedirs(outdir, exist_ok=True)
     s = pd.read_csv(summary)
@@ -156,6 +179,7 @@ def main(summary, outdir):
     fig_rq2(s, os.path.join(outdir, "fig_rq2_sigma_m.png"))
     fig_rq3(s, os.path.join(outdir, "fig_rq3_scan_build_vs_k.png"), os.path.join(outdir, "fig_rq3_memory.png"))
     fig_breakeven(s, os.path.join(outdir, "fig_rq3_total_cost.png"))
+    fig_ablation(s, os.path.join(outdir, "fig_rq3_ablation.png"))
     print(sorted(os.listdir(outdir)))
 
 

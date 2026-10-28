@@ -65,11 +65,14 @@ def _check_text(text: bytes) -> None:
 
 
 def scan(text: bytes, structure: Dict[str, Any],
-         count_comparisons: bool = False) -> Union[Matches, Tuple[Matches, int]]:
-    """Quét một lượt từ trái sang phải; con trỏ văn bản không bao giờ lùi."""
+         count_comparisons: bool = False, hit=None) -> Union[Matches, Tuple[Matches, int], None]:
+    """Quét một lượt từ trái sang phải; con trỏ văn bản không bao giờ lùi.
+
+    hit=hàm: gọi hit(pos, 0) cho mỗi khớp thay vì lưu danh sách (dùng khi đo thời gian).
+    """
     _check_text(text)
     if count_comparisons:
-        matches, comparisons, _ = scan_stats(text, structure)
+        matches, comparisons, _ = scan_stats(text, structure, hit=hit)
         return matches, comparisons
 
     p: bytes = structure["pattern"]
@@ -77,8 +80,9 @@ def scan(text: bytes, structure: Dict[str, Any],
     m: int = structure["m"]
     n = len(text)
     matches: Matches = []
+    report = hit if hit is not None else (lambda pos, pid: matches.append((pos, pid)))
     if n == 0 or m > n:
-        return matches
+        return matches if hit is None else None
 
     j = 0  # số byte đầu của mẫu đang khớp với hậu tố của văn bản đã đọc
     for i in range(n):
@@ -88,12 +92,12 @@ def scan(text: bytes, structure: Dict[str, Any],
         if p[j] == b:
             j += 1
         if j == m:
-            matches.append((i - m + 1, 0))
+            report(i - m + 1, 0)
             j = pi[j - 1]  # lùi theo biên để giữ khớp chồng lấn
-    return matches
+    return matches if hit is None else None
 
 
-def scan_stats(text: bytes, structure: Dict[str, Any]) -> Tuple[Matches, int, int]:
+def scan_stats(text: bytes, structure: Dict[str, Any], hit=None) -> Tuple[Matches, int, int]:
     """
     Trả (matches, comparisons, failure_steps).
     comparisons: mỗi lần đối chiếu pattern[j] với text[i] được đếm đúng 1 lần.
@@ -106,6 +110,7 @@ def scan_stats(text: bytes, structure: Dict[str, Any]) -> Tuple[Matches, int, in
     m: int = structure["m"]
     n = len(text)
     matches: Matches = []
+    report = hit if hit is not None else (lambda pos, pid: matches.append((pos, pid)))
     if n == 0 or m > n:
         return matches, 0, 0
 
@@ -124,7 +129,7 @@ def scan_stats(text: bytes, structure: Dict[str, Any]) -> Tuple[Matches, int, in
             failure_steps += 1
             j = pi[j - 1]
         if j == m:
-            matches.append((i - m + 1, 0))
+            report(i - m + 1, 0)
             j = pi[j - 1]
     return matches, comparisons, failure_steps
 

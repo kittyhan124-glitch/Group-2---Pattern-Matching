@@ -17,6 +17,8 @@ import pandas as pd
 PAIRS = {  # (baseline, candidate) cho từng RQ
     "RQ1": [("bf", "kmp")], "RQ2A": [("bf", "kmp")], "RQ2B": [("bf", "kmp")],
     "RQ3": [("kmp-k", "ac"), ("lib-find", "ac"), ("kmp-k", "lib-find")],
+    # ablation: speedup = t(biến thể bị tắt cơ chế) / t(ac đầy đủ) = mức đóng góp của cơ chế đó
+    "RQ3ABL": [("ac-noout", "ac"), ("ac-nofail", "ac")],
 }
 CFG = ["rq", "corpus_id", "S_MiB", "k", "m_bytes"]
 RS = (1, 5, 20)
