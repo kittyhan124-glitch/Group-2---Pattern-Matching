@@ -20,9 +20,13 @@ Các corpus lớn bị `.gitignore` loại; cần tạo trước khi chạy ma t
 python data\create_t1_t2.py
 python data\create_t3_t4.py
 python data\make_profile_manifest.py
+python data\extract_keywords.py          # bộ từ khóa thật cho RQ3 (cần T1/T2 4 MiB)
+python data\extract_keywords.py --check  # đối chiếu lại với data\keywords\keywords_manifest.json
 ```
 
-So sánh SHA-256 với `data\corpus_manifest.json` và `data\data_hashes.csv` trước khi đo chính thức. `data\keywords\` hiện chứa bộ từ khóa stub; không chạy/đưa RQ3 vào báo cáo cho tới khi TV5 thay bằng bộ thật và xác nhận nguồn.
+So sánh SHA-256 với `data\corpus_manifest.json` và `data\data_hashes.csv` trước khi đo chính thức.
+
+`data\extract_keywords.py` trích từ và cụm 1–3 từ có thật trong T1/T2 (4–32 byte, xuất hiện ≥ 2 lần), lấy mẫu đều theo 3 dải tần suất, k = 1/10/100/1000 lồng nhau theo seed 11/29/47. Script ghi `keywords_manifest.json` (SHA-256 nguồn, `keyword_hash` từng tệp) và xóa `STUB_NOTICE.txt`. Khi `STUB_NOTICE.txt` còn tồn tại, runner từ chối chạy RQ3 vì `data\keywords\` vẫn là bộ stub của `keywords_stub.py`.
 
 ## Kiểm thử
 
@@ -46,7 +50,7 @@ Plan mặc định là `bench\plan.csv`; kết quả mặc định là `results\
 python bench\runner.py run --cell "RQ2B|T4|S4|k1|m8|seed|bf" --reps 1 --out results\raw\single_cell.csv
 ```
 
-Kiểm tra mọi dòng của cell có `status=ok` và `oracle_ok=1`. Không dùng cell RQ3 trước khi có từ khóa thật. Mỗi tiến trình benchmark bị giới hạn 60 giây; GC bật mặc định.
+Kiểm tra mọi dòng của cell có `status=ok` và `oracle_ok=1`. Không dùng cell RQ3 trước khi có từ khóa thật. Runner không nối tiếp vào CSV có header cũ; hãy ghi ra file `--out` mới. Mỗi tiến trình benchmark bị giới hạn 60 giây; GC bật mặc định.
 
 ## Thống kê và hình
 
@@ -69,4 +73,4 @@ CSV thô và bảng thống kê ở `results\raw\`; biểu đồ ở `results\fi
 | `paper\` | Báo cáo IEEE |
 | `results\raw\`, `results\figures\` | Kết quả và biểu đồ chính thức |
 
-RQ3 ablation so sánh AC đầy đủ với biến thể tắt Output Link và tắt Failure Link. Chi tiết giao thức ở `docs\benchmark_protocol.md`; các giới hạn dữ liệu cần báo cáo ở `docs\limitations.md`.
+RQ3 ablation so sánh AC đầy đủ với biến thể tắt Output Link và tắt Failure Link; lượt count ghi thêm `state_transitions` (số lần chuyển trạng thái khi quét, ≤ 2N) và `output_steps`. Có thể gọi worker bằng cờ `--timing`, `--count`, `--mem` đúng như quy định chung §6. Chi tiết giao thức ở `docs\benchmark_protocol.md`; các giới hạn dữ liệu cần báo cáo ở `docs\limitations.md`.

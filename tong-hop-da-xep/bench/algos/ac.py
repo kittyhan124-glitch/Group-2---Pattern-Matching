@@ -13,8 +13,8 @@ def scan(text, S, hit):
 
 
 def scan_counted(text, S, hit):
-    r = S.scan_counted(text, hit)
-    return {"comparisons": r["comparisons"], "failure_steps": r["failure_steps"]}
+    # comparisons, goto_steps, failure_steps, state_transitions, output_steps
+    return S.scan_counted(text, hit)
 
 
 def size(S):

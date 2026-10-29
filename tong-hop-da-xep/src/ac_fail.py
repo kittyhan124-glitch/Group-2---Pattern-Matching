@@ -63,7 +63,7 @@ def _normalize_keywords(raw_keywords: Union[List[str], List[bytes], List[Keyword
         if hasattr(item, "byte_pattern"):
             if len(item.byte_pattern) == 0:
                 raise ValueError("Từ khóa byte không được rỗng!")
-            if item.byte_pattern not in seen_bytes:
+            if not dedupe or item.byte_pattern not in seen_bytes:
                 seen_bytes.add(item.byte_pattern)
                 manifest.append(KeywordItem(
                     pid=getattr(item, "pid", current_pid),
@@ -103,7 +103,7 @@ def _normalize_keywords(raw_keywords: Union[List[str], List[bytes], List[Keyword
             byte_pat = norm_str.encode("utf-8")
             if len(byte_pat) == 0:
                 raise ValueError("Từ khóa byte không được rỗng!")
-            if byte_pat in seen_bytes:
+            if dedupe and byte_pat in seen_bytes:
                 continue
             seen_bytes.add(byte_pat)
             manifest.append(KeywordItem(
@@ -242,12 +242,16 @@ class AhoCorasickFail:
 
     def scan_counted(self, text_bytes: bytes, hit) -> Dict[str, int]:
         """Cùng logic scan_hits nhưng đếm (đề §6, lượt --count):
-        comparisons   = số lần tra một cạnh (b in node.children);
-        failure_steps = số lần lùi theo Failure Link;
-        output_steps  = số lần đi theo Output Link."""
+        comparisons       = số lần tra một cạnh (b in node.children);
+        goto_steps        = số lần chuyển theo hàm goto (đúng 1 lần mỗi byte; ở gốc,
+                            byte không có cạnh thì goto(0, b) = 0 như bài báo gốc);
+        failure_steps     = số lần lùi theo Failure Link;
+        state_transitions = goto_steps + failure_steps = tổng số lần chuyển trạng thái
+                            (định lý của Aho & Corasick [2]: <= 2N);
+        output_steps      = số lần đi theo Output Link tới một nút kết thúc khác."""
         root = self.root
         curr = root
-        cmp_ = fs = os_ = 0
+        cmp_ = fs = os_ = gs = 0
         for idx, b in enumerate(text_bytes):
             while True:
                 cmp_ += 1
@@ -256,14 +260,20 @@ class AhoCorasickFail:
                 curr = curr.fail
                 fs += 1
             curr = curr.children.get(b, root)
-            temp = curr if curr.matches else curr.output_link
+            gs += 1
+            temp = curr
+            if not temp.matches:
+                temp = temp.output_link
+                if temp is not None:
+                    os_ += 1
             while temp is not None:
                 for pid, byte_len, _ in temp.matches:
                     hit(idx - byte_len + 1, pid)
                 temp = temp.output_link
                 if temp is not None:
                     os_ += 1
-        return {"comparisons": cmp_, "failure_steps": fs, "output_steps": os_}
+        return {"comparisons": cmp_, "goto_steps": gs, "failure_steps": fs,
+                "state_transitions": gs + fs, "output_steps": os_}
 
     # --- ABLATION (quy định chung §3, RQ3): tắt lần lượt từng cơ chế ---
     def scan_no_output(self, text_bytes: bytes, hit) -> None:
@@ -294,6 +304,51 @@ class AhoCorasickFail:
                 for pid, _, _ in node.matches:
                     hit(start, pid)
                 i += 1
+
+    def scan_no_output_counted(self, text_bytes: bytes, hit) -> Dict[str, int]:
+        """Bản đếm của scan_no_output (lượt --count cho ablation).
+        output_steps ở đây = số bước duyệt chuỗi Failure Link để báo khớp (thay cho Output Link)."""
+        root = self.root
+        curr = root
+        cmp_ = fs = os_ = gs = 0
+        for idx, b in enumerate(text_bytes):
+            while True:
+                cmp_ += 1
+                if b in curr.children or curr is root:
+                    break
+                curr = curr.fail
+                fs += 1
+            curr = curr.children.get(b, root)
+            gs += 1
+            temp = curr
+            while temp is not root:
+                for pid, byte_len, _ in temp.matches:
+                    hit(idx - byte_len + 1, pid)
+                temp = temp.fail
+                os_ += 1
+        return {"comparisons": cmp_, "goto_steps": gs, "failure_steps": fs,
+                "state_transitions": gs + fs, "output_steps": os_}
+
+    def scan_no_fail_counted(self, text_bytes: bytes, hit) -> Dict[str, int]:
+        """Bản đếm của scan_no_fail: comparisons = số lần tra cạnh Trie; state_transitions = số lần đi
+        xuống một cạnh Trie (không có Failure/Output Link nên failure_steps = output_steps = 0)."""
+        root = self.root
+        n = len(text_bytes)
+        cmp_ = gs = 0
+        for start in range(n):
+            node = root
+            i = start
+            while i < n:
+                cmp_ += 1
+                node = node.children.get(text_bytes[i])
+                if node is None:
+                    break
+                gs += 1
+                for pid, _, _ in node.matches:
+                    hit(start, pid)
+                i += 1
+        return {"comparisons": cmp_, "goto_steps": gs, "failure_steps": 0,
+                "state_transitions": gs, "output_steps": 0}
 
     def size(self) -> Tuple[int, int]:
         """(states, transitions) = (số nút Trie, số cạnh)."""

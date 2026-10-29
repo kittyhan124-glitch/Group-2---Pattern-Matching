@@ -1,5 +1,0 @@
-rq,corpus_id,S_MiB,k,m_bytes,baseline,candidate,seed,baseline_status,candidate_status,t_baseline_ms,t_candidate_ms,speedup
-RQ2B,T4,4,1,8,bf,kmp,na,ok,ok,3164.79,723.025,4.37715
-RQ2B,T4,4,1,8,bf,kmp,median,ok,ok,,,4.37715
-RQ2B,T4,4,1,8,bf,kmp,min,ok,ok,,,4.37715
-RQ2B,T4,4,1,8,bf,kmp,max,ok,ok,,,4.37715

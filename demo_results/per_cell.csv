@@ -1,3 +1,0 @@
-rq,corpus_id,S_MiB,k,m_bytes,cell_id,algo,variant,seed,sigma,N_bytes,status,n_reps,elapsed_med,elapsed_min,elapsed_max,build_med,build_min,build_max,rep_range_pct,count,check,oracle_ok,cpu_wall_min,n_contended,comparisons,failure_steps,lines_flagged,lines_total,mem_peak_bytes,states,transitions,L_bytes
-RQ2B,T4,4,1,8,RQ2B|T4|S4|k1|m8|seed|bf,bf,,na,1,4194304,ok,1,3164.79,3164.79,3164.79,0.0014,0.0014,0.0014,0,0,0,1,0.9825,0,3.35544e+07,,0,1,332,,,8
-RQ2B,T4,4,1,8,RQ2B|T4|S4|k1|m8|seed|kmp,kmp,,na,1,4194304,ok,1,723.025,723.025,723.025,0.0069,0.0069,0.0069,0,0,0,1,0.9941,0,8.3886e+06,4.1943e+06,0,1,492,9,,8
