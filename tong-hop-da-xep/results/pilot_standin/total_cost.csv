@@ -1,0 +1,40 @@
+rq,corpus_id,S_MiB,k,m_bytes,algo,build_ms,scan_ms,total_r1_ms,total_r5_ms,total_r20_ms,breakeven_r,note
+RQ3,T1_vi,4,1,16,ac,0.036207,257.729,257.765,1288.68,5154.61,,
+RQ3,T1_vi,4,1,16,kmp-k,0.013252,320.056,320.07,1600.29,6401.14,,
+RQ3,T1_vi,4,1,16,lib-find,0.003108,1.85756,1.86067,9.29091,37.1543,,
+RQ3,T1_vi,4,1,16,BREAKEVEN kmp-k->ac,0.022955,62.3274,,,,0.000368297,r* = (build_c - build_b)/(scan_b - scan_c); r nguyên >= ceil(r*)
+RQ3,T1_vi,4,1,16,BREAKEVEN lib-find->ac,0.033099,-255.871,,,,,candidate scan không nhanh hơn baseline: không có hòa vốn
+RQ3,T1_vi,4,1,16,BREAKEVEN kmp-k->lib-find,-0.010144,318.199,,,,0,candidate không tốn build hơn: lợi ngay từ r=1
+RQ3,T1_vi,4,10,16,ac,0.092568,306.908,307,1534.63,6138.25,,
+RQ3,T1_vi,4,10,16,kmp-k,0.020935,2000.45,2000.47,10002.3,40009,,
+RQ3,T1_vi,4,10,16,lib-find,0.003015,17.0071,17.0101,85.0386,340.146,,
+RQ3,T1_vi,4,10,16,BREAKEVEN kmp-k->ac,0.071633,1693.54,,,,4.22977e-05,r* = (build_c - build_b)/(scan_b - scan_c); r nguyên >= ceil(r*)
+RQ3,T1_vi,4,10,16,BREAKEVEN lib-find->ac,0.089553,-289.901,,,,,candidate scan không nhanh hơn baseline: không có hòa vốn
+RQ3,T1_vi,4,10,16,BREAKEVEN kmp-k->lib-find,-0.01792,1983.44,,,,0,candidate không tốn build hơn: lợi ngay từ r=1
+RQ3,T1_vi,4,100,16,ac,0.628433,380.237,380.866,1901.81,7605.37,,
+RQ3,T1_vi,4,100,16,kmp-k,0.082413,17632.1,17632.1,88160.3,352641,,
+RQ3,T1_vi,4,100,16,lib-find,0.003664,153.97,153.974,769.853,3079.4,,
+RQ3,T1_vi,4,100,16,BREAKEVEN kmp-k->ac,0.54602,17251.8,,,,3.165e-05,r* = (build_c - build_b)/(scan_b - scan_c); r nguyên >= ceil(r*)
+RQ3,T1_vi,4,100,16,BREAKEVEN lib-find->ac,0.624769,-226.267,,,,,candidate scan không nhanh hơn baseline: không có hòa vốn
+RQ3,T1_vi,4,100,16,BREAKEVEN kmp-k->lib-find,-0.078749,17478.1,,,,0,candidate không tốn build hơn: lợi ngay từ r=1
+RQ3,T2_en,4,1,16,ac,0.037131,247.441,247.478,1237.24,4948.86,,
+RQ3,T2_en,4,1,16,kmp-k,0.013344,323.762,323.775,1618.82,6475.25,,
+RQ3,T2_en,4,1,16,lib-find,0.00305,1.9694,1.97245,9.85005,39.3911,,
+RQ3,T2_en,4,1,16,BREAKEVEN kmp-k->ac,0.023787,76.3207,,,,0.000311672,r* = (build_c - build_b)/(scan_b - scan_c); r nguyên >= ceil(r*)
+RQ3,T2_en,4,1,16,BREAKEVEN lib-find->ac,0.034081,-245.472,,,,,candidate scan không nhanh hơn baseline: không có hòa vốn
+RQ3,T2_en,4,1,16,BREAKEVEN kmp-k->lib-find,-0.010294,321.792,,,,0,candidate không tốn build hơn: lợi ngay từ r=1
+RQ3,T2_en,4,10,16,ac,0.093556,312.516,312.609,1562.67,6250.41,,
+RQ3,T2_en,4,10,16,kmp-k,0.016607,2031.59,2031.6,10158,40631.8,,
+RQ3,T2_en,4,10,16,lib-find,0.001713,15.2407,15.2424,76.2052,304.816,,
+RQ3,T2_en,4,10,16,BREAKEVEN kmp-k->ac,0.076949,1719.07,,,,4.47619e-05,r* = (build_c - build_b)/(scan_b - scan_c); r nguyên >= ceil(r*)
+RQ3,T2_en,4,10,16,BREAKEVEN lib-find->ac,0.091843,-297.275,,,,,candidate scan không nhanh hơn baseline: không có hòa vốn
+RQ3,T2_en,4,10,16,BREAKEVEN kmp-k->lib-find,-0.014894,2016.35,,,,0,candidate không tốn build hơn: lợi ngay từ r=1
+RQ3,T2_en,4,100,16,ac,0.650925,400.721,401.372,2004.26,8015.07,,
+RQ3,T2_en,4,100,16,kmp-k,0.088068,17960.6,17960.7,89803,359212,,
+RQ3,T2_en,4,100,16,lib-find,0.002166,144.546,144.548,722.734,2890.93,,
+RQ3,T2_en,4,100,16,BREAKEVEN kmp-k->ac,0.562857,17559.9,,,,3.20536e-05,r* = (build_c - build_b)/(scan_b - scan_c); r nguyên >= ceil(r*)
+RQ3,T2_en,4,100,16,BREAKEVEN lib-find->ac,0.648759,-256.175,,,,,candidate scan không nhanh hơn baseline: không có hòa vốn
+RQ3,T2_en,4,100,16,BREAKEVEN kmp-k->lib-find,-0.085902,17816,,,,0,candidate không tốn build hơn: lợi ngay từ r=1
+RQ3,T1_vi,4,1000,16,ac,7.16773,461.624,468.791,2315.29,9239.64,,
+RQ3,T1_vi,4,1000,16,lib-find,0.00647,1475.31,1475.32,7376.57,29506.3,,
+RQ3,T1_vi,4,1000,16,BREAKEVEN lib-find->ac,7.16126,1013.69,,,,0.00706455,r* = (build_c - build_b)/(scan_b - scan_c); r nguyên >= ceil(r*)

@@ -1,0 +1,101 @@
+{
+  "seed": 11,
+  "fuzz_cases": 10000,
+  "categories": {
+    "binary_small": 2500,
+    "binary_256": 2500,
+    "unicode_nfc_nfd": 2500,
+    "prefix_suffix_overlap": 2500
+  },
+  "comparisons_by_algorithm": {
+    "bf": 10000,
+    "kmp": 10000,
+    "kmp_k": 10000,
+    "ac_fail": 10000
+  },
+  "fixed_cases": 10,
+  "failures": [],
+  "recorded_failures": [],
+  "contract_issues": [],
+  "line_fixture": {
+    "label_kind": "hand_checked_keyword_presence_not_toxicity",
+    "expected_flagged_line_ids": [
+      0,
+      2,
+      4,
+      6
+    ],
+    "algorithms": {
+      "bf": {
+        "actual_flagged_line_ids": [
+          0,
+          2,
+          4,
+          6
+        ],
+        "summary": {
+          "count": 5,
+          "check": 129000393,
+          "lines_flagged": 4,
+          "lines_total": 7
+        },
+        "oracle_ok": true,
+        "status": "passed"
+      },
+      "kmp": {
+        "actual_flagged_line_ids": [
+          0,
+          2,
+          4,
+          6
+        ],
+        "summary": {
+          "count": 5,
+          "check": 129000393,
+          "lines_flagged": 4,
+          "lines_total": 7
+        },
+        "oracle_ok": true,
+        "status": "passed"
+      },
+      "kmp_k": {
+        "actual_flagged_line_ids": [
+          0,
+          2,
+          4,
+          6
+        ],
+        "summary": {
+          "count": 5,
+          "check": 129000393,
+          "lines_flagged": 4,
+          "lines_total": 7
+        },
+        "oracle_ok": true,
+        "status": "passed"
+      },
+      "ac_fail": {
+        "actual_flagged_line_ids": [
+          0,
+          2,
+          4,
+          6
+        ],
+        "summary": {
+          "count": 5,
+          "check": 129000393,
+          "lines_flagged": 4,
+          "lines_total": 7
+        },
+        "oracle_ok": true,
+        "status": "passed"
+      }
+    }
+  },
+  "status": "passed",
+  "source_sha256": {},
+  "python": "3.12.0 (tags/v3.12.0:0fb18b0, Oct  2 2023, 13:03:39) [MSC v.1935 64 bit (AMD64)]",
+  "platform": "Windows-11-10.0.26300-SP0",
+  "timestamp_utc": "2026-10-28T16:57:34.182343+00:00",
+  "scope": "actual member code; canonical nonempty unique bytes; BF/KMP adapted per pattern only for validation"
+}
