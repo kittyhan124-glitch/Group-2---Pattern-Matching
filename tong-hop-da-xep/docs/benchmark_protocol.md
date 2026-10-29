@@ -46,7 +46,8 @@ def build(patterns: list[bytes]) -> S: ...
 def scan(text: bytes, S, hit) -> None:
     """Gọi hit(pos, pid) cho MỌI khớp (kể cả chồng lấn). KHÔNG đếm gì thêm, KHÔNG in, KHÔNG lưu danh sách hit."""
 def scan_counted(text: bytes, S, hit) -> dict:
-    """Cùng logic với scan nhưng đếm; trả {'comparisons': int|None, 'failure_steps': int|None}. Chỉ chạy ở lượt --count."""
+    """Cùng logic với scan nhưng đếm; trả {'comparisons', 'failure_steps'} (int|None). AC trả thêm
+    'goto_steps', 'state_transitions' (= goto_steps + failure_steps, <= 2N) và 'output_steps'. Chỉ chạy ở lượt --count."""
 def size(S) -> tuple[int|None, int|None]:   # (states, transitions)
 ```
 
@@ -56,6 +57,8 @@ def size(S) -> tuple[int|None, int|None]:   # (states, transitions)
 | kmp | `kmp.py` | TV3 | 1 mẫu | Prefix Table tính trong `build` |
 | kmp-k | `kmpk.py` | TV3 | k mẫu | **Một** vòng quét văn bản; trong mỗi byte cập nhật k trạng thái |
 | ac | `ac.py` | TV5 | k mẫu | Failure Link + Output Link, cạnh dict |
+| ac-noout | `ac_noout.py` | TV5 | k mẫu | Ablation: tắt Output Link (duyệt cả chuỗi Failure Link để báo khớp) |
+| ac-nofail | `ac_nofail.py` | TV5 | k mẫu | Ablation: tắt Failure Link (chỉ Trie, bắt đầu lại từ gốc ở mỗi vị trí) |
 | lib-find | `libfind.py` | TV2 | k mẫu | `bytes.find`, lần tìm kế tiếp bắt đầu ở `pos + 1` |
 
 Ràng buộc: mẫu rỗng → `ValueError` (runner cũng kiểm trước khi gọi); `pid` là chỉ số trong `patterns` (từ 0); `pos` là offset byte từ 0.
@@ -67,9 +70,9 @@ Thư mục `algos_ref/` chỉ là **cài đặt thay thế để kiểm thử ru
 
 | Lượt | Lệnh nội bộ | Ghi gì | Không được bật |
 | --- | --- | --- | --- |
-| `timing` | `worker --lane timing` | `build_ms`, `elapsed_ms` (= scan), `count`, `check` | đếm phép toán, tracemalloc, ánh xạ dòng |
-| `count` | `worker --lane count` | `comparisons`, `failure_steps`, `states`, `transitions`, `lines_flagged`, `lines_total`, `count`, `check` | đồng hồ (không dùng làm thời gian) |
-| `mem` | `worker --lane mem` | `mem_peak_bytes`, `mem_current_bytes`, `states`, `transitions` | scan |
+| `timing` | `worker --timing` (= `--lane timing`) | `build_ms`, `elapsed_ms` (= scan), `count`, `check` | đếm phép toán, tracemalloc, ánh xạ dòng |
+| `count` | `worker --count` (= `--lane count`) | `comparisons`, `failure_steps`, `state_transitions`, `output_steps` (AC), `states`, `transitions`, `lines_flagged`, `lines_total`, `count`, `check` | đồng hồ (không dùng làm thời gian) |
+| `mem` | `worker --mem` (= `--lane mem`) | `mem_peak_bytes`, `mem_current_bytes`, `states`, `transitions` | scan |
 
 - Đồng hồ: `time.perf_counter_ns()` [7]; `build_ms` và `elapsed_ms` tính theo mili-giây. GC được giữ bật mặc định nên các lần thu gom tự nhiên (nếu xảy ra) thuộc thời gian đo.
 - Bộ nhớ: corpus và mẫu đã nạp trước; `tracemalloc.start()` **ngay trước** `build`; `mem_peak_bytes` là đỉnh của **vùng build** (cấu trúc
@@ -165,9 +168,12 @@ Mỗi dòng là một lượt chạy. Ô không áp dụng **để trống**, kh
 | --- | --- |
 | Nhận diện | `run_id, rq, cell_id, corpus_id, corpus_hash, keyword_hash, seed, rep, mode (warmup/timing/count/mem), code_version` |
 | Cấu hình | `algo, variant, N_bytes, S_MiB, k, m_bytes, m_min, m_median, m_max, L_bytes, sigma` |
-| Hiệu năng | `build_ms, elapsed_ms, throughput_MiB_s, mem_peak_bytes, mem_current_bytes, states, transitions, failure_steps, comparisons` |
+| Hiệu năng | `build_ms, elapsed_ms, throughput_MiB_s, mem_peak_bytes, mem_current_bytes, states, transitions, failure_steps, comparisons, state_transitions, output_steps` |
 | Kết quả | `count, check, lines_total, lines_flagged, oracle_ok` |
 | Trạng thái | `status, timeout_s, note` |
+
+`states, transitions` là **kích thước** automaton (số nút, số cạnh Trie); số lần **chuyển trạng thái khi quét** nằm ở `state_transitions`.
+Runner từ chối nối tiếp vào một CSV có header khác schema này (ghi ra `--out` mới).
 
 `code_version = <sha256[:10] của file thuật toán>+<sha256[:8] của bench/runner.py>`; máy và Python nằm trong `bench/machine_log.json`.
 Tệp tóm tắt: `summary.csv`, `speedup.csv`, `total_cost.csv`, `consistency.csv`, `per_cell.csv` (sinh bởi `stats.py`).

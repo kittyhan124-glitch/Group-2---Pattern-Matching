@@ -34,7 +34,7 @@ PLAN_FIELDS = ["cell_id", "group_id", "rq", "corpus_id", "corpus_file", "binary"
 RAW_FIELDS = ["run_id", "rq", "cell_id", "corpus_id", "corpus_hash", "keyword_hash", "seed", "rep", "mode",
               "code_version", "algo", "variant", "N_bytes", "S_MiB", "k", "m_bytes", "m_min", "m_median", "m_max",
               "L_bytes", "sigma", "build_ms", "elapsed_ms", "throughput_MiB_s", "mem_peak_bytes",
-              "mem_current_bytes", "cpu_wall_ratio", "states", "transitions", "failure_steps", "comparisons", "count", "check",
+              "mem_current_bytes", "cpu_wall_ratio", "states", "transitions", "failure_steps", "comparisons", "state_transitions", "output_steps", "count", "check",
               "lines_total", "lines_flagged", "oracle_ok", "status", "timeout_s", "note"]
 
 
@@ -111,7 +111,8 @@ def worker(cell, lane, algo_dir, prefix):
         lc = common.LineCollector(text)
         r = mod.scan_counted(text, S, lc.hit)
         st, tr = mod.size(S)
-        out.update(comparisons=r.get("comparisons"), failure_steps=r.get("failure_steps"), states=st,
+        out.update(comparisons=r.get("comparisons"), failure_steps=r.get("failure_steps"),
+                   state_transitions=r.get("state_transitions"), output_steps=r.get("output_steps"), states=st,
                    transitions=tr, count=lc.count, check=lc.check, lines_flagged=len(lc.lines),
                    lines_total=len(lc.nl) + 1)
 
@@ -131,7 +132,7 @@ def worker(cell, lane, algo_dir, prefix):
 # ------------------------------------------------------------------ ORCHESTRATOR
 def spawn(cell, lane, timeout_s, algo_dir, prefix=0):
     timeout_s = min(float(timeout_s), TIMEOUT_S)
-    cmd = [sys.executable, os.path.abspath(__file__), "worker", "--cell", json.dumps(cell), "--lane", lane,
+    cmd = [sys.executable, os.path.abspath(__file__), "worker", "--cell", json.dumps(cell), f"--{lane}",
            "--algo-dir", algo_dir, "--prefix", str(prefix)]
     env = dict(os.environ, PYTHONHASHSEED="0")
     try:
@@ -155,7 +156,11 @@ class Store:
         self.path, self.done, self.rows = path, set(), {}
         if os.path.exists(path):
             with open(path, newline="") as f:
-                self.rows = {r["run_id"]: r for r in csv.DictReader(f)}
+                reader = csv.DictReader(f)
+                if reader.fieldnames != RAW_FIELDS:
+                    raise ValueError(f"{path}: header khác schema hiện tại (RAW_FIELDS); "
+                                     "hãy ghi ra file --out mới thay vì nối tiếp file cũ")
+                self.rows = {r["run_id"]: r for r in reader}
                 self.done = set(self.rows)
         else:
             with open(path, "w", newline="") as f:
@@ -425,7 +430,15 @@ def main():
                    help="lượt timing có cpu/wall thấp hơn ngưỡng bị coi là nhiễu")
     p.add_argument("--retry-contended", type=int, default=2, help="số lần đo lại tối đa cho lượt bị nhiễu")
     p = sp.add_parser("worker")
-    p.add_argument("--cell", required=True); p.add_argument("--lane", required=True)
+    p.add_argument("--cell", required=True)
+    lane = p.add_mutually_exclusive_group(required=True)
+    lane.add_argument("--lane", choices=("oracle", "timing", "count", "mem"))
+    lane.add_argument("--oracle", dest="lane", action="store_const", const="oracle", help="= --lane oracle")
+    lane.add_argument("--timing", dest="lane", action="store_const", const="timing", help="= --lane timing")
+    lane.add_argument("--count", dest="lane", action="store_const", const="count",
+                      help="= --lane count (quy định chung §6: lượt đếm phép toán riêng)")
+    lane.add_argument("--mem", dest="lane", action="store_const", const="mem",
+                      help="= --lane mem (quy định chung §6: lượt tracemalloc riêng)")
     p.add_argument("--algo-dir", required=True); p.add_argument("--prefix", type=int, default=0)
     a = ap.parse_args()
     if a.cmd == "worker":

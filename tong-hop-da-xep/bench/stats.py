@@ -36,7 +36,10 @@ def aggregate_status(statuses):
 def load(path):
     d = pd.read_csv(path, keep_default_na=True, dtype={"seed": "string"})
     for c in ["S_MiB", "k", "m_bytes", "N_bytes", "build_ms", "elapsed_ms", "throughput_MiB_s", "mem_peak_bytes",
-              "states", "transitions", "comparisons", "failure_steps", "count", "lines_flagged", "lines_total", "cpu_wall_ratio"]:
+              "states", "transitions", "comparisons", "failure_steps", "state_transitions", "output_steps", "count",
+              "lines_flagged", "lines_total", "cpu_wall_ratio"]:
+        if c not in d:                      # CSV cũ chưa có cột này (state_transitions, output_steps)
+            d[c] = np.nan
         d[c] = pd.to_numeric(d[c], errors="coerce")
     d["seed"] = d["seed"].fillna("na")
     return d
@@ -70,7 +73,8 @@ def per_cell(d):
     # gắn thông tin từ lượt count và mem
     cnt = d[(d["mode"] == "count") & (d["status"] == "ok")].set_index("cell_id")
     mem = d[(d["mode"] == "mem") & (d["status"] == "ok")].set_index("cell_id")
-    for col, src in (("comparisons", cnt), ("failure_steps", cnt), ("lines_flagged", cnt), ("lines_total", cnt),
+    for col, src in (("comparisons", cnt), ("failure_steps", cnt), ("state_transitions", cnt), ("output_steps", cnt),
+                     ("lines_flagged", cnt), ("lines_total", cnt),
                      ("mem_peak_bytes", mem), ("states", mem), ("transitions", mem), ("L_bytes", mem)):
         out[col] = out["cell_id"].map(src[col])
     for src in (cnt, mem):
@@ -105,6 +109,8 @@ def build_summary(pc):
         base.update(
             comparisons_per_N=(g["comparisons"] / g["N_bytes"]).median(),
             failure_steps_per_N=(g["failure_steps"] / g["N_bytes"]).median(),
+            state_transitions_per_N=(g["state_transitions"] / g["N_bytes"]).median(),
+            output_steps_per_N=(g["output_steps"] / g["N_bytes"]).median(),
             mem_peak_bytes=g["mem_peak_bytes"].median(), states=g["states"].median(),
             transitions=g["transitions"].median())
         rows.append(base)

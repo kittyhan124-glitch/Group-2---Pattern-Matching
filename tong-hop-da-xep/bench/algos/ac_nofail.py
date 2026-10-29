@@ -13,8 +13,7 @@ def scan(text, S, hit):
 
 
 def scan_counted(text, S, hit):
-    S.scan_no_fail(text, hit)
-    return {"comparisons": None, "failure_steps": None}
+    return S.scan_no_fail_counted(text, hit)
 
 
 def size(S):

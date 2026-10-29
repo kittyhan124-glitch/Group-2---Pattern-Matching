@@ -1,0 +1,17 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Data directory containing large corpus files (>150MB)
+tong-hop-da-xep/data/*.bin
+!tong-hop-da-xep/data/T4_worst_4MiB.bin
+
+# Virtual environment
+venv/
+.venv/
+env/
+
+# IDE / Editor artifacts
+.vscode/
+.idea/

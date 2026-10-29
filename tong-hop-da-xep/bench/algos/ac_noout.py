@@ -13,8 +13,8 @@ def scan(text, S, hit):
 
 
 def scan_counted(text, S, hit):
-    S.scan_no_output(text, hit)
-    return {"comparisons": None, "failure_steps": None}
+    # output_steps = số bước duyệt chuỗi Failure Link để báo khớp (phần việc Output Link tiết kiệm được)
+    return S.scan_no_output_counted(text, hit)
 
 
 def size(S):
