@@ -52,6 +52,13 @@ def load_algo(name, algo_dir):
     return mod, h.hexdigest()[:10]
 
 
+def ensure_parent(path):
+    """Tạo thư mục chứa tệp đầu ra nếu chưa có (vd. results/raw/ trên bản clone mới)."""
+    d = os.path.dirname(os.path.abspath(path))
+    os.makedirs(d, exist_ok=True)
+    return path
+
+
 def file_sha(path, _cache={}):
     if path not in _cache:
         _cache[path] = common.sha256_file(path)
@@ -134,9 +141,11 @@ def spawn(cell, lane, timeout_s, algo_dir, prefix=0):
     timeout_s = min(float(timeout_s), TIMEOUT_S)
     cmd = [sys.executable, os.path.abspath(__file__), "worker", "--cell", json.dumps(cell), f"--{lane}",
            "--algo-dir", algo_dir, "--prefix", str(prefix)]
-    env = dict(os.environ, PYTHONHASHSEED="0")
+    # PYTHONIOENCODING: tiến trình con luôn ghi UTF-8 (Windows mặc định cp1252 không có "ễ", "ệ"...)
+    env = dict(os.environ, PYTHONHASHSEED="0", PYTHONIOENCODING="utf-8")
     try:
-        p = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout_s, env=env)
+        p = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace",
+                           timeout=timeout_s, env=env)
     except subprocess.TimeoutExpired:
         return "timeout", {}, f"quá {timeout_s}s"
     if p.returncode != 0:
@@ -153,9 +162,10 @@ def spawn(cell, lane, timeout_s, algo_dir, prefix=0):
 
 class Store:
     def __init__(self, path):
+        ensure_parent(path)
         self.path, self.done, self.rows = path, set(), {}
         if os.path.exists(path):
-            with open(path, newline="") as f:
+            with open(path, newline="", encoding="utf-8") as f:
                 reader = csv.DictReader(f)
                 if reader.fieldnames != RAW_FIELDS:
                     raise ValueError(f"{path}: header khác schema hiện tại (RAW_FIELDS); "
@@ -163,12 +173,12 @@ class Store:
                 self.rows = {r["run_id"]: r for r in reader}
                 self.done = set(self.rows)
         else:
-            with open(path, "w", newline="") as f:
+            with open(path, "w", newline="", encoding="utf-8") as f:
                 csv.DictWriter(f, RAW_FIELDS).writeheader()
 
     def add(self, row):
         row = {k: ("" if row.get(k) is None else row.get(k)) for k in RAW_FIELDS}
-        with open(self.path, "a", newline="") as f:
+        with open(self.path, "a", newline="", encoding="utf-8") as f:
             csv.DictWriter(f, RAW_FIELDS).writerow(row)
         self.done.add(row["run_id"])
         self.rows[row["run_id"]] = row
@@ -190,7 +200,7 @@ def merge(row, res):
 
 
 def run_plan(args):
-    plan = list(csv.DictReader(open(args.plan, newline="")))
+    plan = list(csv.DictReader(open(args.plan, newline="", encoding="utf-8")))
     if args.cell:
         plan = [r for r in plan if r["cell_id"] == args.cell]
         if len(plan) != 1:
@@ -206,7 +216,7 @@ def run_plan(args):
             raise RuntimeError(f"RQ3 đang bị chặn vì bộ từ khóa là stub: {stub_notice}")
     store = Store(args.out)
     oracle_path = os.path.join(HERE, "oracle_cache.json")
-    ocache = json.load(open(oracle_path)) if os.path.exists(oracle_path) else {}
+    ocache = json.load(open(oracle_path, encoding="utf-8")) if os.path.exists(oracle_path) else {}
     groups = {}
     for r in plan:
         groups.setdefault(r["group_id"], []).append(r)
@@ -223,7 +233,7 @@ def run_plan(args):
             if st != "ok":
                 print("   !! oracle lỗi:", note); continue
             ocache[okey] = res
-            json.dump(ocache, open(oracle_path, "w"))
+            json.dump(ocache, open(oracle_path, "w", encoding="utf-8"))
         orc = ocache[okey]
         algos = [c["algo"] for c in cells]
         by_algo = {c["algo"]: c for c in cells}
@@ -343,7 +353,7 @@ def build_plan(timeout_s, seeds=SEEDS):
 
 def cmd_plan(a):
     rows = build_plan(a.timeout_s)
-    with open(a.out, "w", newline="") as f:
+    with open(ensure_parent(a.out), "w", newline="", encoding="utf-8") as f:
         w = csv.DictWriter(f, PLAN_FIELDS)
         w.writeheader(); w.writerows(rows)
     from collections import Counter
@@ -353,7 +363,7 @@ def cmd_plan(a):
 
 # ------------------------------------------------------------------ ESTIMATE (pilot)
 def cmd_estimate(a):
-    plan = list(csv.DictReader(open(a.plan, newline="")))
+    plan = list(csv.DictReader(open(a.plan, newline="", encoding="utf-8")))
     classes = {}
     for r in plan:
         key = (r["rq"], r["corpus_id"].split("_s")[0] if r["rq"] == "RQ2A" else r["corpus_id"], r["algo"], r["k"],
@@ -385,32 +395,91 @@ def cmd_estimate(a):
             out.append({"cell_id": c["cell_id"], "rq": c["rq"], "algo": c["algo"], "S_MiB": c["S_MiB"], "k": c["k"],
                         "m": c["m"], "est_build_s": b, "est_scan_s": scan, "prediction": pred,
                         "est_cell_cost_s": cost, "note": f"ngoại suy tuyến tính từ tiền tố {a.prefix} byte"})
-    with open(a.out, "w", newline="") as f:
+    with open(ensure_parent(a.out), "w", newline="", encoding="utf-8") as f:
         w = csv.DictWriter(f, list(out[0].keys()))
         w.writeheader(); w.writerows(out)
     tot = sum(float(o["est_cell_cost_s"]) for o in out)
     print(f"-> {a.out}: {len(out)} ô, tổng ước lượng ≈ {tot / 3600:.1f} giờ (chưa tính lệch do ngoại suy)")
 
 
-def cmd_machine(a):
-    import shutil
-    info = {"time_utc": time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime()), "python": sys.version,
-            "implementation": platform.python_implementation(), "platform": platform.platform(),
-            "machine": platform.machine(), "cpu_count": os.cpu_count(), "bench_py_sha256": hashlib.sha256(
-                open(__file__, "rb").read()).hexdigest(), "loadavg": os.getloadavg()}
+def _machine_windows(info):
+    """Thông tin máy trên Windows (không có os.getloadavg, /proc, /sys)."""
+    try:
+        import winreg
+        with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"HARDWARE\DESCRIPTION\System\CentralProcessor\0") as k:
+            info["cpu_model"] = winreg.QueryValueEx(k, "ProcessorNameString")[0].strip()
+            info["cpu_mhz_nominal"] = winreg.QueryValueEx(k, "~MHz")[0]
+    except Exception:
+        info["cpu_model"] = platform.processor()
+    try:
+        import ctypes
+
+        class MEMORYSTATUSEX(ctypes.Structure):
+            _fields_ = [("dwLength", ctypes.c_ulong), ("dwMemoryLoad", ctypes.c_ulong),
+                        ("ullTotalPhys", ctypes.c_ulonglong), ("ullAvailPhys", ctypes.c_ulonglong),
+                        ("ullTotalPageFile", ctypes.c_ulonglong), ("ullAvailPageFile", ctypes.c_ulonglong),
+                        ("ullTotalVirtual", ctypes.c_ulonglong), ("ullAvailVirtual", ctypes.c_ulonglong),
+                        ("ullAvailExtendedVirtual", ctypes.c_ulonglong)]
+        st = MEMORYSTATUSEX()
+        st.dwLength = ctypes.sizeof(MEMORYSTATUSEX)
+        if ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(st)):
+            info["mem_total_MiB"] = st.ullTotalPhys // 2 ** 20
+            info["mem_load_pct"] = st.dwMemoryLoad
+    except Exception:
+        pass
+    try:   # chế độ nguồn: nên là "High performance"/"Ultimate Performance" khi đo
+        r = subprocess.run(["powercfg", "/getactivescheme"], capture_output=True, text=True, timeout=10)
+        if r.returncode == 0:
+            info["power_scheme"] = r.stdout.strip()
+    except Exception:
+        pass
+    try:   # đang cắm sạc hay chạy pin
+        import ctypes
+
+        class SYSTEM_POWER_STATUS(ctypes.Structure):
+            _fields_ = [("ACLineStatus", ctypes.c_byte), ("BatteryFlag", ctypes.c_byte),
+                        ("BatteryLifePercent", ctypes.c_byte), ("SystemStatusFlag", ctypes.c_byte),
+                        ("BatteryLifeTime", ctypes.c_ulong), ("BatteryFullLifeTime", ctypes.c_ulong)]
+        ps = SYSTEM_POWER_STATUS()
+        if ctypes.windll.kernel32.GetSystemPowerStatus(ctypes.byref(ps)):
+            info["ac_power"] = {0: False, 1: True}.get(ps.ACLineStatus)
+    except Exception:
+        pass
+
+
+def _machine_posix(info):
+    try:
+        info["loadavg"] = os.getloadavg()
+    except (AttributeError, OSError):
+        pass
     try:
         info["cpu_model"] = [l.split(":", 1)[1].strip() for l in open("/proc/cpuinfo") if l.startswith("model name")][0]
         info["mem_total_MiB"] = int([l for l in open("/proc/meminfo") if l.startswith("MemTotal")][0].split()[1]) // 1024
     except Exception:
-        pass
+        info.setdefault("cpu_model", platform.processor())
     for p in ("/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor",):
         if os.path.exists(p):
             info["cpu_governor"] = open(p).read().strip()
-    json.dump(info, open(a.out, "w"), indent=2, ensure_ascii=False)
+
+
+def cmd_machine(a):
+    info = {"time_utc": time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime()), "python": sys.version,
+            "implementation": platform.python_implementation(), "platform": platform.platform(),
+            "machine": platform.machine(), "cpu_count": os.cpu_count(), "bench_py_sha256": hashlib.sha256(
+                open(__file__, "rb").read()).hexdigest()}
+    if os.name == "nt":
+        _machine_windows(info)
+    else:
+        _machine_posix(info)
+    with open(ensure_parent(a.out), "w", encoding="utf-8") as f:
+        json.dump(info, f, indent=2, ensure_ascii=False)
     print(json.dumps(info, indent=2, ensure_ascii=False))
 
 
 def main():
+    for stream in (sys.stdout, sys.stderr):      # in tiếng Việt ra console/file trên Windows không làm dừng runner
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(errors="replace")
     ap = argparse.ArgumentParser()
     sp = ap.add_subparsers(dest="cmd", required=True)
     p = sp.add_parser("machine"); p.add_argument("--out", default=os.path.join(HERE, "machine_log.json"))

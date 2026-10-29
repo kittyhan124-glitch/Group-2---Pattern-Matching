@@ -41,7 +41,7 @@ class TestExtractKeywords(unittest.TestCase):
         self.data = self.tmp.name
         self.kw = os.path.join(self.data, "keywords")
         os.makedirs(self.kw)
-        open(os.path.join(self.kw, "STUB_NOTICE.txt"), "w").write("stub")
+        open(os.path.join(self.kw, "STUB_NOTICE.txt"), "w", encoding="utf-8").write("stub")
         for name, words, seed in (("vi.bin", VI_WORDS, 1), ("en.bin", EN_WORDS, 2)):
             text = make_corpus(words, seed)
             open(os.path.join(self.data, name), "wb").write(unicodedata.normalize("NFC", text).encode("utf-8"))
