@@ -1,0 +1,7 @@
+{
+  "label_kind": "hand_checked_keyword_presence_not_toxicity",
+  "keywords": ["Việt", "he", "aaa"],
+  "text": "Việt Nam\nkhong co\nshe\nVIỆT\nxaaaa\n\nhe",
+  "expected_flagged_line_ids": [0, 2, 4, 6],
+  "notes": "NFC then UTF-8. Case sensitive substrings. she contains he; xaaaa contains two overlapping aaa. No human toxicity labels claimed."
+}

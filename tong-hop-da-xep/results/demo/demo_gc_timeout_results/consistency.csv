@@ -1,0 +1,2 @@
+rq,corpus_id,S_MiB,k,m_bytes,seed,algos,n_algos,same_count,same_check,all_oracle_ok
+RQ2B,T4,4,1,8,na,"bf,kmp",2,1,1,1

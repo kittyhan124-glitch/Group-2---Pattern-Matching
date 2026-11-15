@@ -1,0 +1,16 @@
+{
+  "time_utc": "2026-10-27 16:18:25",
+  "python": "3.12.3 (main, Mar  3 2026, 12:15:18) [GCC 13.3.0]",
+  "implementation": "CPython",
+  "platform": "Linux-6.18.44-fc-v165-x86_64-with-glibc2.39",
+  "machine": "x86_64",
+  "cpu_count": 1,
+  "bench_py_sha256": "0aad76694ceb6019152303a588edd7fec939e2c59575f1c9c5a3567e37849b6c",
+  "loadavg": [
+    0.0,
+    0.0,
+    0.0
+  ],
+  "cpu_model": "Intel(R) Xeon(R) Processor @ 2.10GHz",
+  "mem_total_MiB": 3995
+}

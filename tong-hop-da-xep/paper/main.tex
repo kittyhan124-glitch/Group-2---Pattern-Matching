@@ -1,0 +1,80 @@
+\documentclass[conference]{IEEEtran}
+\usepackage{booktabs}
+\usepackage{amsmath}
+\usepackage{url}
+
+\title{Byte-Oriented Pattern Matching for NLP Training-Data Filtering}
+\author{\IEEEauthorblockN{Group 2}
+\IEEEauthorblockA{CSD203, AI21B}}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+This paper studies Brute Force (BF), Knuth--Morris--Pratt (KMP), multi-pattern
+KMP, and Aho--Corasick with failure links for byte-oriented keyword matching
+in NLP training data. The repository contains a reproducible benchmark runner,
+an oracle-based validator, and a planned workload matrix. Official measurements
+must be generated from the final corpora and the TV5-approved keyword set;
+therefore no performance values are asserted in this draft.
+\end{abstract}
+
+\begin{IEEEkeywords}
+string matching, KMP, Aho--Corasick, NLP data filtering, reproducible benchmarks
+\end{IEEEkeywords}
+
+\section{Introduction}
+Filtering large training corpora by keyword requires both correct matching and
+an understanding of preprocessing and measurement costs. This project compares
+single-pattern and multi-pattern algorithms using byte offsets, a common result
+collector, and an independent \texttt{bytes.find} oracle.
+
+\section{Methods}
+The planned evaluation uses BF and KMP for RQ1 and RQ2, and multi-pattern
+algorithms for RQ3. Timing, operation counting, and Python allocation tracking
+are separate process lanes. Corpus loading, pattern preparation, and oracle
+work are outside the timed scan. A run is eligible for performance comparison
+only when its output agrees with the oracle. See
+\texttt{docs/benchmark\_protocol.md} for the full configuration and CSV schema.
+
+\section{Results}
+Official result tables and figures are intentionally pending. They must be
+generated from \texttt{results/raw/} after data hashes, algorithm validation,
+and the approved RQ3 keywords have been verified. Pilot and demo outputs are
+not evidence for the reported conclusions.
+
+\section{Discussion}
+\subsection{Why Brute Force Can Match or Outperform KMP on T1/T2}
+KMP provides a linear worst-case bound, but asymptotic complexity does not
+determine runtime for a particular Python implementation. In natural-language
+text, a short pattern may mismatch near its first byte at most candidate
+positions. BF can then perform very little work per position, whereas KMP
+maintains prefix state and may execute failure-link branches after a mismatch.
+For short patterns, interpreter-level branch and state-management costs can
+outweigh KMP's reduction in comparisons. This is a mechanism-based explanation,
+not a measured conclusion: BF may be described as equally fast or faster on
+T1/T2 only if official timing rows confirm it and have \texttt{oracle\_ok=1}.
+
+\subsection{Memory--Speed Trade-off: Failure Links Versus DFA}
+A failure-link automaton stores sparse trie edges and failure metadata, so its
+space is related to the number of states and stored edges. A scan may follow
+one or more failure links when a direct edge is absent. A DFA can precompute a
+transition for each state and alphabet symbol, reducing transition work to a
+direct lookup at the cost of a potentially dense table proportional to the
+number of states times alphabet size. Thus a DFA can trade substantially more
+memory for fewer transition-time branches. This project does not implement or
+benchmark the 256-column DFA; this comparison is analytical and must not be
+presented as an experimental result.
+
+\section{Threats to Validity}
+T2 is not entirely ASCII, so byte-level behavior on T2 is not equivalent to an
+ASCII-only corpus. The T3 corpora with alphabet sizes $\sigma=2,4,256$ share
+seed 42 and are not independent replications. For $\sigma=26$, patterns are
+cut from the 1 MiB source file while size-specific corpora are generated
+independently; such a pattern may be rare or absent in larger files. The
+occurrence counts must be checked before interpreting hit-sensitive timing.
+In addition, measurements are Python- and machine-specific, three seeds do not
+support strong inferential statistics, and \texttt{tracemalloc} is not process
+RSS.
+
+\end{document}
