@@ -5,6 +5,7 @@
 ## Môi trường
 
 - CPython 3.11 trở lên; không dùng PyPy.
+- Số liệu trong bài báo (`paper/main.pdf`) được đo bằng **CPython 3.14.8** trên Windows 11 build 26300, Intel Core 7 240H, 32 GiB RAM. Kết quả thô nằm ở thư mục `results/` tại gốc repo: phiên chính `results/recorded_20261103_234305/` (RQ1, RQ2B, RQ3, ablation) và phiên bổ sung `results/supplement_20261104_025037/` (RQ2A, thí nghiệm phụ về BF).
 - `pandas`, `numpy`, `matplotlib` chỉ phục vụ thống kê và biểu đồ.
 
 ```powershell
