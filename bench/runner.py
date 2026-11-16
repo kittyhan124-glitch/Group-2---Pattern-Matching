@@ -66,7 +66,7 @@ def file_sha(path, _cache={}):
 
 
 def code_version(algo_hash):
-    return f"{algo_hash}+{hashlib.sha256(open(__file__, 'rb').read()).hexdigest()[:8]}"
+    return f"{algo_hash}+{hashlib.sha256(open(__file__, 'rb').read()).hexdigest()[:8]}+{hashlib.sha256(open(common.__file__, 'rb').read()).hexdigest()[:8]}"
 
 
 def medians(xs):
@@ -227,7 +227,10 @@ def run_plan(args):
         corpus_hash = file_sha(os.path.join(ROOT, c0["corpus_file"]))
         print(f"[{gi}/{len(groups)}] {gid}  ({time.time() - t_start:.0f}s)", flush=True)
         # --- oracle độc lập (bytes.find) cho nhóm này
-        okey = f"{corpus_hash}|{c0['pattern_spec']}"
+        prepared_patterns = common.make_patterns(json.loads(c0["pattern_spec"]), ROOT)
+        common.check_patterns(prepared_patterns)
+        prepared_keyword_hash = common.keyword_hash(prepared_patterns)
+        okey = f"v2-nfc-utf8-overlap|{corpus_hash}|{prepared_keyword_hash}|{c0['pattern_spec']}"
         if okey not in ocache:
             st, res, note = spawn(c0 | {"algo": "lib-find"}, "oracle", T, args.algo_dir)
             if st != "ok":
@@ -254,7 +257,8 @@ def run_plan(args):
                     if lane == "timing":
                         row["throughput_MiB_s"] = (N / 2 ** 20) / (res["elapsed_ms"] / 1000) if res["elapsed_ms"] > 0 else ""
                     if lane in ("timing", "count"):
-                        row["oracle_ok"] = int(res["count"] == orc["count"] and res["check"] == orc["check"] and
+                        row["oracle_ok"] = int(res["keyword_hash"] == orc["keyword_hash"] and
+                                               res["count"] == orc["count"] and res["check"] == orc["check"] and
                                                (lane == "timing" or res["lines_flagged"] == orc["lines_flagged"]))
                         if lane == "count":
                             row["lines_total"], row["lines_flagged"] = res["lines_total"], res["lines_flagged"]

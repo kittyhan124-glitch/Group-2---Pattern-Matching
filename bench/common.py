@@ -146,6 +146,16 @@ def load_text(path, binary=False):
     """Nạp văn bản; với corpus chữ phải là UTF-8 hợp lệ và đã NFC (kiểm 1 lần, ngoài thời gian đo)."""
     b = open(path, "rb").read()
     if not binary:
+        certificate_path = os.environ.get("PMATCH_VALIDATED_CORPUS_MANIFEST")
+        if certificate_path:
+            with open(certificate_path, encoding="utf-8") as f:
+                certificate = json.load(f)
+            entry = certificate.get("files", {}).get(os.path.abspath(os.fspath(path)))
+            if not entry or not entry.get("utf8_valid") or not entry.get("nfc_stable"):
+                raise ValueError(f"{path}: missing UTF-8/NFC certificate")
+            if len(b) != entry["bytes"] or hashlib.sha256(b).hexdigest() != entry["sha256"]:
+                raise ValueError(f"{path}: corpus certificate does not match current bytes")
+            return b
         s = b.decode("utf-8")
         if unicodedata.normalize("NFC", s) != s:
             raise ValueError(f"{path} chưa ở dạng NFC")
