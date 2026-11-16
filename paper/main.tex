@@ -18,6 +18,9 @@
 \usepackage[hidelinks]{hyperref}
 \usepackage{url}
 \usepackage{balance}
+\newcommand{\src}[1]{{\normalfont\footnotesize\emph{Source:}~\cite{data} {\scriptsize\texttt{#1}}}}
+\newcommand{\RM}{results/recorded\_20261103\_234305}
+\newcommand{\RS}{results/supplement\_20261104\_025037}
 
 \begin{document}
 
@@ -38,7 +41,7 @@ string matching, KMP, Aho--Corasick, ablation study, NLP data filtering
 \end{IEEEkeywords}
 
 \section{Introduction}
-Before a large language model is trained, its corpus is commonly filtered against keyword lists in order to remove toxic content or personal information, or to assign topic labels. Such lists may contain thousands of keywords, while the text to be scanned often reaches tens of mebibytes or more. Classic algorithms such as Brute Force (BF) and Knuth--Morris--Pratt (KMP)~\cite{kmp} are designed for a single pattern, so running them once per keyword costs $O(k\cdot N)$ for $k$ patterns and a text of $N$ bytes. Aho--Corasick (AC)~\cite{ac} generalizes the KMP failure function to a trie that holds the whole pattern set and scans the text in a single pass in $O(N+Z)$ time, where $Z$ is the number of matches, independently of $k$.
+Before a large language model is trained, its corpus is commonly filtered against keyword lists~\cite{t5} in order to remove toxic content or personal information, or to assign topic labels. Such lists may contain thousands of keywords, while the text to be scanned often reaches tens of mebibytes or more. Classic algorithms such as Brute Force (BF) and Knuth--Morris--Pratt (KMP)~\cite{kmp} are designed for a single pattern, so running them once per keyword costs $O(k\cdot N)$ for $k$ patterns and a text of $N$ bytes. Aho--Corasick (AC)~\cite{ac} generalizes the KMP failure function to a trie that holds the whole pattern set and scans the text in a single pass in $O(N+Z)$ time, where $Z$ is the number of matches, independently of $k$.
 
 The overall question of this study is: \emph{how can one to thousands of keywords be found completely and exactly in Vietnamese and English corpora with the highest throughput when the algorithms are implemented in pure Python?} We divide it into three research questions, each paired with a hypothesis (H) that is tested in Section~\ref{sec:results}:
 \begin{itemize}
@@ -49,7 +52,7 @@ The overall question of this study is: \emph{how can one to thousands of keyword
 Our contributions are a unified pure-Python implementation of all four algorithms over UTF-8 bytes together with a test oracle, a matrix of 306 configurations measured under a reproducible protocol, and an ablation study that isolates the roles of the failure link and the output link.
 
 \section{Background and Related Work}
-KMP~\cite{kmp} and Aho--Corasick~\cite{ac} are the foundational algorithms for single-pattern and multi-pattern exact matching, and the textbook by Goodrich et al.~\cite{goodrich} presents BF, KMP and tries in Python. Production corpus filters usually call libraries written in C; this study instead compares the algorithms when they are implemented in pure Python under one common data convention, and uses \texttt{bytes.find} only as a reference baseline.
+KMP~\cite{kmp} and Aho--Corasick~\cite{ac} are the foundational algorithms for single-pattern and multi-pattern exact matching, and the textbook by Goodrich et al.~\cite{goodrich} presents BF, KMP and tries in Python. Production corpus filters usually call libraries written in C; this study instead compares the algorithms when they are implemented in pure Python under one common data convention, and uses \texttt{bytes.find} only as a reference baseline. Skip-based single-pattern algorithms such as Boyer--Moore~\cite{bm} are outside the scope of this study.
 
 \subsection{Brute Force and KMP}
 BF tries every starting position $i$, compares $T[i+j]$ with $P[j]$, and stops at the first mismatching byte; its worst-case cost is $O(N\cdot m)$ with $O(1)$ extra memory. KMP~\cite{kmp} precomputes a table $\pi$, where $\pi[i]$ is the length of the longest proper prefix of $P[0..i]$ that is also a suffix of it. When a mismatch occurs after $j$ matched bytes, KMP sets $j\leftarrow\pi[j-1]$ and retries the same text byte, so the text pointer never moves backwards. Because each byte increases $j$ by at most one and each fallback decreases it by at least one, the total number of comparisons is at most $2N$. After a full match, KMP sets $j\leftarrow\pi[m-1]$ so that overlapping matches are not missed. Preprocessing takes $O(m)$ time and scanning takes $O(N+Z)$.
@@ -60,11 +63,11 @@ k-KMP stores $k$ tables $\pi$ and $k$ states. The outer loop reads each byte onc
 \subsection{Aho--Corasick}
 AC~\cite{ac} is defined by three functions. \emph{goto} gives the edges of a trie that contains every pattern, so patterns with a common prefix share a branch. \emph{fail}$(u)$ points to the state that represents the longest proper suffix of the string at $u$ that is still present in the trie; since a failure link always points to a shallower node, the links are built in breadth-first (BFS) order. \emph{output} reports the patterns that end at the current state together with the patterns that are suffixes of it; the output link (dictionary suffix link) points directly to the nearest terminal node on the failure chain. The number of states satisfies $Q\le L+1$. For each byte, the automaton follows failure links while no edge exists, takes the goto edge and then reports the outputs. The number of state transitions is at most $2N$, and the scan costs $O(N+Z)$ when an edge lookup in a Python dictionary takes expected $O(1)$ time. For a single pattern, the trie is a path and its failure links coincide with the KMP table $\pi$.
 
-The full DFA variant~\cite{ac} precomputes a 256-column transition table for every state, so each byte requires exactly one lookup, at the cost of memory proportional to $Q\times 256$. Under the course rules for five-member groups, the team is exempt from implementing this variant; Section~\ref{sec:discussion} analyzes it only theoretically.
+The full DFA variant~\cite{ac} precomputes a 256-column transition table for every state, so each byte requires exactly one lookup, at the cost of memory proportional to $Q\times 256$. Under the course rules~\cite{rules} for five-member groups, the team is exempt from implementing this variant; Section~\ref{sec:discussion} analyzes it only theoretically.
 
 \section{Methods}
 \subsection{Data and Output Convention}
-Texts and keywords are normalized to Unicode NFC and encoded as UTF-8, and every algorithm operates on \texttt{bytes}. A match position is a zero-based byte offset; for example, in the Vietnamese phrase ``bác sĩ'' the pattern ``sĩ'' starts at byte 5, because ``á'' occupies two bytes. Every match, including overlapping ones, must be reported, and empty patterns are rejected. The pattern identifier \texttt{pid} is the index of the keyword in the input list after NFC normalization and removal of duplicates (the first occurrence is kept); the keyword files used in this study contain no duplicates, so \texttt{pid} equals the line index of the keyword. Results are summarized as a count and an order-independent checksum:
+Texts and keywords are normalized to Unicode NFC~\cite{uax15} and encoded as UTF-8~\cite{utf8}, and every algorithm operates on \texttt{bytes}. A match position is a zero-based byte offset; for example, in the Vietnamese phrase ``bác sĩ'' the pattern ``sĩ'' starts at byte 5, because ``á'' occupies two bytes. Every match, including overlapping ones, must be reported, and empty patterns are rejected. The pattern identifier \texttt{pid} is the index of the keyword in the input list after NFC normalization and removal of duplicates (the first occurrence is kept); the keyword files used in this study contain no duplicates, so \texttt{pid} equals the line index of the keyword. Results are summarized as a count and an order-independent checksum:
 \begin{equation}
 \mathrm{check}=\sum_{(pos,\,pid)}\big((pos+1)\cdot 1000003+pid\big)\bmod 2^{64}.
 \end{equation}
@@ -167,7 +170,7 @@ Ablation: no failure link & \texttt{scan\_no\_fail} \\
 \end{table}
 
 \subsection{Ablation Design}
-Following the common framework of the course, RQ3 disables one mechanism at a time. The variant without output links still uses failure links for state transitions, but after every byte it must walk the entire failure chain up to the root to find terminal nodes. The variant without failure links (which implies no output links) uses only the trie and restarts from the root at every byte position, with a worst-case cost of $O(N\cdot d)$, where $d$ is the depth of the trie. The three variants share the same construction step, so any difference comes from the scan alone, and their results must be identical.
+Following the common framework of the course~\cite{rules}, RQ3 disables one mechanism at a time. The variant without output links still uses failure links for state transitions, but after every byte it must walk the entire failure chain up to the root to find terminal nodes. The variant without failure links (which implies no output links) uses only the trie and restarts from the root at every byte position, with a worst-case cost of $O(N\cdot d)$, where $d$ is the depth of the trie. The three variants share the same construction step, so any difference comes from the scan alone, and their results must be identical.
 
 \section{Experimental Setup}
 \textbf{Machine.} Intel Core 7 240H (10 cores, 16 threads), 32~GiB RAM, Windows 11 build 26300, CPython 3.14.8, Balanced power plan, on AC power.
@@ -176,7 +179,7 @@ Following the common framework of the course, RQ3 disables one mechanism at a ti
 
 \textbf{Matrix.} RQ1 uses T1 and T3 ($\sigma=26$) with $N\in\{1,2,4,8,16\}$~MiB and a 16-byte pattern. RQ2A uses T3 with $N=4$~MiB, $m=64$ and four values of $\sigma$. RQ2B uses T4 with $N=4$~MiB and $m\in\{8,64,1024\}$. RQ3 uses T1 and T2 at 4 and 16~MiB with $k\in\{1,10,100,1000\}$ and compares AC, k-KMP and \texttt{bytes.find}; the ablation runs on T1 and T2 at 4~MiB. In total there are 306 configurations. The three seeds 11, 29 and 47 vary the patterns and keyword sets; RQ2B is deterministic, so each value of $m$ is a single configuration without a seed, and its reported time is the median of the three timed repetitions.
 
-\textbf{Protocol.} Every measurement runs in a fresh process, and data loading and normalization finish before the timed region. A timing run consists of one warm-up and three timed repetitions, and the median is taken per seed. Counting runs (comparisons, failure fallbacks, state transitions and output steps) and memory runs (\texttt{tracemalloc} around the construction step) are executed separately so that they do not affect the timings. Time is measured with \texttt{time.perf\_counter\_ns()} separately for construction and for the scan. The scan time includes the cost of the shared result collector, whose \texttt{hit()} callback updates the count and the checksum for every match; this cost is the same for all algorithms in a given configuration. The garbage collector remains enabled in every run (\texttt{gc.disable()} is never called), so natural collections are included in the measured time, and \texttt{PYTHONHASHSEED=0} keeps hash ordering stable. Each process is limited to 60~s through \texttt{subprocess.run(..., timeout=60)}; runs that exceed this limit are recorded as \texttt{timeout} and are never assigned a number. Throughput is computed as $(N/2^{20})/(t/1000)$~MiB/s. Unless stated otherwise, a speedup is the median of the per-seed ratios computed from unrounded times, so it may differ slightly from the ratio of the rounded medians shown in the tables. The main session took place on 3--4 November 2026 and was video-recorded; the supplementary session for RQ2A and the auxiliary BF experiment has its own CSV files. The project repository~\cite{repo} contains the source code and test reports in \texttt{tong-hop-da-xep/}, and the raw measurements of both sessions in \texttt{results/}, including corpus and keyword hashes, per-seed minimum and maximum times, and the expected oracle results.
+\textbf{Protocol.} Every measurement runs in a fresh process, and data loading and normalization finish before the timed region. A timing run consists of one warm-up and three timed repetitions, and the median is taken per seed. Counting runs (comparisons, failure fallbacks, state transitions and output steps) and memory runs (\texttt{tracemalloc} around the construction step) are executed separately so that they do not affect the timings. Time is measured with \texttt{time.perf\_counter\_ns()}~\cite{pydoc} separately for construction and for the scan. The scan time includes the cost of the shared result collector, whose \texttt{hit()} callback updates the count and the checksum for every match; this cost is the same for all algorithms in a given configuration. The garbage collector remains enabled in every run (\texttt{gc.disable()} is never called), so natural collections are included in the measured time, and \texttt{PYTHONHASHSEED=0} keeps hash ordering stable. Each process is limited to 60~s through \texttt{subprocess.run(..., timeout=60)}; runs that exceed this limit are recorded as \texttt{timeout} and are never assigned a number. Throughput is computed as $(N/2^{20})/(t/1000)$~MiB/s. Unless stated otherwise, a speedup is the median of the per-seed ratios computed from unrounded times, so it may differ slightly from the ratio of the rounded medians shown in the tables. The main session took place on 3--4 November 2026 and was video-recorded; the supplementary session for RQ2A and the auxiliary BF experiment has its own CSV files. The project repository~\cite{repo} contains the source code (\texttt{src/}, \texttt{bench/}), the tests (\texttt{tests/}) and the raw measurements of both sessions in \texttt{results/}, including corpus and keyword hashes, per-seed minimum and maximum times, and the expected oracle results.
 
 \section{Results and Discussion}
 \label{sec:results}
@@ -200,17 +203,17 @@ Fig.~\ref{fig:rq1} shows that the throughput of both algorithms stays nearly con
 \addlegendentry{KMP}
 \end{axis}
 \end{tikzpicture}
-\caption{RQ1: throughput of BF and KMP on T1 with a 16-byte pattern, median of three seeds.}
+\caption{RQ1: throughput of BF and KMP on T1 with a 16-byte pattern, median of three seeds.\\ \src{\RM/analysis/summary.csv}}
 \label{fig:rq1}
 \end{figure}
 
-The project brief predicted that BF would be as fast as or faster than KMP on natural text, because most alignments fail at the first byte. The first part of this prediction holds: on T1 at 4~MiB, BF performs 1.050 and KMP 1.029 comparisons per byte. Nevertheless, KMP is 1.91--1.99$\times$ faster (211.1 versus 403.3~ms at 4~MiB). In CPython the cost lies in the number of bytecode instructions rather than in the comparisons themselves: at every position BF creates a new inner \texttt{range(m)} loop, even though the loop usually runs once and then breaks. A supplementary experiment on T3 at 4~MiB ($m=16$, three seeds) confirms this mechanism. The original BF takes 387.7~ms and KMP 200.1~ms, whereas a BF variant that tests the first byte before entering the inner loop takes only 114.5~ms, which is 1.75$\times$ faster than KMP. In isolation, the inner-loop structure costs 299.3~ms against 123.6~ms for a flat loop (2.42$\times$). This variant is used only as an explanation and does not replace the original BF in the RQ1 results.
+Hypothesis H1 predicted that BF would be as fast as or faster than KMP on natural text, because most alignments fail at the first byte. The first part of this prediction holds: on T1 at 4~MiB, BF performs 1.050 and KMP 1.029 comparisons per byte. Nevertheless, KMP is 1.91--1.99$\times$ faster (211.1 versus 403.3~ms at 4~MiB). In CPython the cost lies in the number of bytecode instructions rather than in the comparisons themselves: at every position BF creates a new inner \texttt{range(m)} loop, even though the loop usually runs once and then breaks. A supplementary experiment on T3 at 4~MiB ($m=16$, three seeds) confirms this mechanism. The original BF takes 387.7~ms and KMP 200.1~ms, whereas a BF variant that tests the first byte before entering the inner loop takes only 114.5~ms, which is 1.75$\times$ faster than KMP. In isolation, the inner-loop structure costs 299.3~ms against 123.6~ms for a flat loop (2.42$\times$). This variant is used only as an explanation and does not replace the original BF in the RQ1 results.
 
 \subsection{RQ2: Data Conditions}
 Table~\ref{tab:rq2} summarizes both experiments. In RQ2A, the number of comparisons per byte made by BF matches the expected value $1+1/\sigma+1/\sigma^2+\dots=\sigma/(\sigma-1)$, because each subsequent byte is compared only if all preceding bytes matched, each with probability $1/\sigma$. BF time decreases as $\sigma$ grows. KMP is 1.72--2.10$\times$ faster than BF in terms of the ratio of medians, even at $\sigma=256$ where both perform almost the same number of comparisons; this is the same implementation overhead observed in RQ1.
 
 \begin{table}[t]
-\caption{RQ2: Scan Time (ms), $N=4$~MiB}
+\caption{RQ2: Scan Time (ms), $N=4$~MiB\\ \src{RQ2A: \RS/analysis/summary.csv}\\ \src{RQ2B: \RM/t4\_current.csv}}
 \label{tab:rq2}
 \centering
 \setlength{\tabcolsep}{4pt}
@@ -240,7 +243,7 @@ In RQ2B, BF matches $m-1$ bytes \texttt{a} before failing at every position, so 
 Table~\ref{tab:rq3} and Fig.~\ref{fig:rq3} report the results on T1 at 4~MiB. The number of comparisons per byte made by k-KMP is approximately $k$ (1.06, 10.33 and 102.22), its time grows almost linearly in $k$, and it exceeds 60~s for all three seeds at $k=1{,}000$. AC stays at 1.06--1.33 comparisons per byte, and its time grows by only 50.4\% while $k$ grows 1{,}000-fold; the increase comes from additional failure fallbacks and from the number of matches $Z$, not from a factor of $k$. At $k=100$, AC is 87.64$\times$ faster than k-KMP (median of per-seed ratios). At $k=1$, AC and KMP both perform 1.06 comparisons per byte, consistent with the observation that the failure links of a single-pattern trie coincide with $\pi$. \emph{Hypothesis check (H3):} confirmed for both time and memory (see below).
 
 \begin{table}[t]
-\caption{RQ3: T1, 4~MiB, Median of Three Seeds (TO = Timeout at 60~s)}
+\caption{RQ3: T1, 4~MiB, Median of Three Seeds (TO = Timeout at 60~s)\\ \src{\RM/analysis/summary.csv, build\_only.csv}}
 \label{tab:rq3}
 \centering
 \setlength{\tabcolsep}{3.5pt}
@@ -284,7 +287,7 @@ The price of AC is memory: the number of states reaches 9{,}343 and the memory a
 \addplot[blue!70!black, dashed, no markers, domain=1:1000, samples=2, forget plot] {60000};
 \end{axis}
 \end{tikzpicture}
-\caption{RQ3: scan time versus $k$ on T1 at 4~MiB (log--log scale). The dashed line marks the 60~s limit.}
+\caption{RQ3: scan time versus $k$ on T1 at 4~MiB (log--log scale). The dashed line marks the 60~s limit.\\ \src{\RM/analysis/summary.csv}}
 \label{fig:rq3}
 \end{figure}
 
@@ -292,7 +295,7 @@ The price of AC is memory: the number of states reaches 9{,}343 and the memory a
 Table~\ref{tab:abl} compares the three variants. The ablation configurations are separate cells of the matrix and were measured in separate runs, so the times of the full version differ slightly from the AC row of Table~\ref{tab:rq3} (for example, 245.5 versus 238.9~ms at $k=1$); comparisons are therefore made only within each table. At $k=1{,}000$, disabling the failure link raises the comparison count from 1.30 to 2.36 per byte and slows AC by 1.83$\times$ (median of per-seed ratios), because the scan has to restart from the root at every position. Disabling the output link slows AC by 1.41$\times$: the full version needs only 1{,}807 output-link jumps to report all matches, whereas the variant without output links visits about 5.7 million nodes on failure chains (medians over the three seeds). These two counters measure different kinds of work and are not CPU cycle counts. At small scale the relationship is reversed: at $k=1$, the variant without failure links is 11\% faster, because the trie is very shallow and natural text almost always mismatches at the root; from $k=10$ onwards, the full version is already slightly faster, and the gap widens as $k$ grows.
 
 \begin{table}[t]
-\caption{Ablation: Scan Time (ms), T1, 4~MiB, Median of Three Seeds}
+\caption{Ablation: Scan Time (ms), T1, 4~MiB, Median of Three Seeds\\ \src{\RM/analysis/summary.csv}}
 \label{tab:abl}
 \centering
 \setlength{\tabcolsep}{4pt}
@@ -309,7 +312,7 @@ No failure link & 218.2 & 309.5 & 454.7 & 655.8 \\
 
 \subsection{Discussion}
 \label{sec:discussion}
-\textbf{BF and KMP on natural text.} The measurements confirm the mechanism stated in the project brief: BF almost always fails at the first byte, so the theoretical advantage of KMP in comparison count disappears. The timing result, however, contradicts the prediction (KMP is 1.9$\times$ faster), and the supplementary experiment shows that the cause lies in the loop structure of the BF implementation rather than in the algorithm: once the inner loop is skipped at most positions, BF becomes faster than KMP. In CPython, the speed ranking of two algorithms of the same order depends on implementation constants.
+\textbf{BF and KMP on natural text.} The measurements confirm the mechanism stated in H1: BF almost always fails at the first byte, so the theoretical advantage of KMP in comparison count disappears. The timing result, however, contradicts the prediction (KMP is 1.9$\times$ faster), and the supplementary experiment shows that the cause lies in the loop structure of the BF implementation rather than in the algorithm: once the inner loop is skipped at most positions, BF becomes faster than KMP. In CPython, the speed ranking of two algorithms of the same order depends on implementation constants.
 
 \textbf{Failure links versus DFA.} The failure-link version stores sparse edges in dictionaries, so its memory is proportional to the number of actual edges ($Q-1$), but a byte may trigger several failure fallbacks. A DFA precomputes the transition for every byte value, removing the fallback loop and requiring exactly one table lookup per byte, but it needs $Q\times 256$ cells; with $Q=9{,}343$ at $k=1{,}000$ this amounts to about 2.39 million cells, compared with 9{,}342 trie edges. Because the team did not implement the DFA, this statement is a model-based analysis rather than a measured result, and a ``cell'' does not correspond to an actual number of bytes in Python.
 
@@ -322,17 +325,24 @@ No failure link & 218.2 & 309.5 & 454.7 & 655.8 \\
 
 \balance
 \section{Conclusion}
-In pure CPython, BF and KMP both scan in linear time; on natural text they perform almost the same number of comparisons, and their speed ranking depends on how the loops are implemented. KMP shows a clear advantage when the data contains repeated prefixes (21.69$\times$ at $m=64$) or a small alphabet. With many keywords, Aho--Corasick is nearly independent of $k$: it is 87.64$\times$ faster than k-KMP at 100 keywords and 4.14--4.27$\times$ faster than \texttt{bytes.find} called from a Python loop at 1{,}000 keywords, in exchange for about 14$\times$ more construction memory. Our conditional recommendations are as follows: use KMP for a single pattern; use Aho--Corasick for multiple patterns in pure Python; and, when a C library is allowed, use \texttt{bytes.find} for $k\le 100$ and Aho--Corasick for $k$ around 1{,}000. These recommendations apply only to the values of $k$ and the implementations that were tested.
+In pure CPython, BF and KMP both scan in linear time; on natural text they perform almost the same number of comparisons, and their speed ranking depends on how the loops are implemented. KMP shows a clear advantage when the data contains repeated prefixes (21.69$\times$ at $m=64$) or a small alphabet. With many keywords, Aho--Corasick is nearly independent of $k$: it is 87.64$\times$ faster than k-KMP at 100 keywords and 4.14--4.27$\times$ faster than \texttt{bytes.find} called from a Python loop at 1{,}000 keywords, in exchange for 14.02$\times$ more construction memory. Our conditional recommendations are as follows: use KMP for a single pattern; use Aho--Corasick for multiple patterns in pure Python; and, when a C library is allowed, use \texttt{bytes.find} for $k\le 100$ and Aho--Corasick for $k$ around 1{,}000. These recommendations apply only to the values of $k$ and the implementations that were tested.
 
 \section*{Acknowledgment}
 \textbf{AI usage statement.} The team used AI tools (Claude by Anthropic and Codex by OpenAI) to assist with merging and reviewing code, running tests, generating figures from CSV files and drafting the text of this report. Every number was taken from recorded measurement runs whose CSV files, including data hashes, are published in the project repository. The team members performed the final testing, verified the sources and take responsibility for the submitted content; AI tools did not replace the individual oral examination.
 
 \begin{thebibliography}{5}
+\bibitem{t5} C.~Raffel \emph{et al.}, ``Exploring the limits of transfer learning with a unified text-to-text transformer,'' \emph{J. Mach. Learn. Res.}, vol.~21, no.~140, pp.~1--67, 2020.
 \bibitem{kmp} D.~E. Knuth, J.~H. Morris, and V.~R. Pratt, ``Fast pattern matching in strings,'' \emph{SIAM J. Comput.}, vol.~6, no.~2, pp.~323--350, 1977.
 \bibitem{ac} A.~V. Aho and M.~J. Corasick, ``Efficient string matching: An aid to bibliographic search,'' \emph{Commun. ACM}, vol.~18, no.~6, pp.~333--340, 1975.
 \bibitem{goodrich} M.~T. Goodrich, R.~Tamassia, and M.~H. Goldwasser, \emph{Data Structures and Algorithms in Python}. Hoboken, NJ, USA: Wiley, 2013, ch.~13.
+\bibitem{bm} R.~S. Boyer and J.~S. Moore, ``A fast string searching algorithm,'' \emph{Commun. ACM}, vol.~20, no.~10, pp.~762--772, 1977.
+\bibitem{rules} CSD203, ``General rules for group projects,'' class AI21B, Fall 2026, FPT University, Oct. 14, 2026. [Online]. Available in~\cite{repo}: \nolinkurl{docs/quy-dinh-chung-do-an-nhom-csd203.md}
+\bibitem{uax15} M.~Davis and K.~Whistler, ``Unicode normalization forms,'' Unicode Standard Annex \#15, Unicode Consortium. Accessed: Nov. 16, 2026. [Online]. Available: \url{https://unicode.org/reports/tr15/}
+\bibitem{utf8} F.~Yergeau, ``UTF-8, a transformation format of ISO 10646,'' RFC 3629, IETF, Nov. 2003.
 \bibitem{wiki} Wikimedia Foundation, ``wikimedia/wikipedia,'' Hugging Face Datasets. Accessed: Nov. 15, 2026. [Online]. Available: \url{https://huggingface.co/datasets/wikimedia/wikipedia}
-\bibitem{repo} Group 2, ``\texttt{Group-2-{}-{}-Pattern-Matching},'' GitHub repository, branch \texttt{main}. Accessed: Nov. 15, 2026. [Online]. Available: \url{https://github.com/kittyhan124-glitch/Group-2---Pattern-Matching}
+\bibitem{pydoc} Python Software Foundation, ``The Python standard library: \texttt{time}, \texttt{tracemalloc},'' Python 3.14 documentation. Accessed: Nov. 16, 2026. [Online]. Available: \url{https://docs.python.org/3.14/library/}
+\bibitem{repo} Group 2, ``\texttt{Group-2-{}-{}-Pattern-Matching},'' GitHub repository, branch \texttt{main}, source code at commit \texttt{88d9837}. Accessed: Nov. 16, 2026. [Online]. Available: \url{https://github.com/kittyhan124-glitch/Group-2---Pattern-Matching}
+\bibitem{data} Group 2, ``Measured results of the pattern-matching benchmark (CSV),'' GitHub repository \texttt{Group-2-{}-{}-Pattern-Matching}, branch \texttt{main}, files \texttt{results/recorded\_20261103\_234305/*.csv} and \texttt{results/supplement\_20261104\_025037/*.csv}, commit \texttt{2174582}. Accessed: Nov. 16, 2026. [Online]. Available: \url{https://github.com/kittyhan124-glitch/Group-2---Pattern-Matching/tree/main/results}
 \end{thebibliography}
 
 \end{document}
