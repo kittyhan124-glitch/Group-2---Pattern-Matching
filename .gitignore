@@ -4,8 +4,8 @@ __pycache__/
 *$py.class
 
 # Data directory containing large corpus files (>150MB)
-tong-hop-da-xep/data/*.bin
-!tong-hop-da-xep/data/T4_worst_4MiB.bin
+data/*.bin
+!data/T4_worst_4MiB.bin
 
 # Virtual environment
 venv/
