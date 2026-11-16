@@ -38,6 +38,14 @@ python -m tests.tv4.validate --fuzz-cases 10000
 
 ## Chạy runner
 
+`bench\runner.py` và `bench\common.py` là đúng bản đã chạy trong hai phiên đo 03–04/11/2026. So với bản trước đó, bản này có thêm ba điểm:
+
+- khóa cache oracle gắn với hash bộ từ khóa thật, và oracle kiểm cả `keyword_hash` của worker;
+- `code_version` ghi thêm hash của `common.py`;
+- tùy chọn đọc chứng nhận corpus (xem cuối mục này).
+
+Mỗi dòng CSV ghi `code_version` dạng `<hash thuật toán + bộ nối>+<hash runner.py>+<hash common.py>`. Số liệu đã nộp có đuôi `+7f1d342d+bbdf7f96`; ví dụ KMP là `d344426163+7f1d342d+bbdf7f96`.
+
 ```powershell
 python bench\runner.py machine
 python bench\runner.py plan
@@ -51,7 +59,9 @@ Plan mặc định là `bench\plan.csv`; khi chạy mới, kết quả mặc đ�
 python bench\runner.py run --cell "RQ2B|T4|S4|k1|m8|seed|bf" --reps 1 --out results\raw\single_cell.csv
 ```
 
-Kiểm tra mọi dòng của cell có `status=ok` và `oracle_ok=1`, rồi so `count`, `check` với dòng cùng `cell_id` trong CSV đã nộp (`results\recorded_20261103_234305\raw_results.csv`, `t4_current.csv` cho RQ2B, hoặc `results\supplement_20261104_025037\raw_results.csv` cho RQ2A); thời gian phải nằm trong 0.5×–2.0× median đã nộp. Không dùng cell RQ3 trước khi có từ khóa thật. Runner không nối tiếp vào CSV có header cũ; hãy ghi ra file `--out` mới. Mỗi tiến trình benchmark bị giới hạn 60 giây; GC bật mặc định.
+Kiểm tra mọi dòng của cell có `status=ok` và `oracle_ok=1`, rồi so `code_version`, `count`, `check` với dòng cùng `cell_id` trong CSV đã nộp (`results\recorded_20261103_234305\raw_results.csv`, `t4_current.csv` cho RQ2B, hoặc `results\supplement_20261104_025037\raw_results.csv` cho RQ2A); thời gian phải nằm trong 0.5×–2.0× median đã nộp. Runner không nối tiếp vào CSV có header cũ; hãy ghi ra file `--out` mới. Mỗi tiến trình benchmark bị giới hạn 60 giây; GC bật mặc định.
+
+Tùy chọn: đặt biến môi trường `PMATCH_VALIDATED_CORPUS_MANIFEST` trỏ tới chứng nhận corpus (JSON có SHA-256, `utf8_valid`, `nfc_stable` theo đường dẫn tuyệt đối) để worker bỏ qua bước chuẩn hóa NFC lặp lại; mọi kiểm tra vẫn nằm ngoài vùng đo. Không đặt biến này thì worker tự kiểm UTF-8/NFC như bình thường, kết quả `count`/`check` không đổi.
 
 ## Thống kê và hình
 

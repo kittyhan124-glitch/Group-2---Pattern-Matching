@@ -1,0 +1,2 @@
+# Giữ LF cho mã Python để hash trong code_version khớp với CSV đã nộp trên mọi máy
+*.py text eol=lf
